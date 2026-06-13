@@ -14,10 +14,19 @@ import { LogToday } from './components/LogToday'
 import { HeaderStats } from './components/HeaderStats'
 import { ContributionGrid } from './components/ContributionGrid'
 import { Sparkline } from './components/Sparkline'
+import { BookChip } from './components/BookChip'
 
 function App() {
   const today = todayISO()
-  const { habit, entries, setEntry, clearEntry } = useHabit(PRIMARY_HABIT_ID)
+  const {
+    habit,
+    entries,
+    booksById,
+    activeBook,
+    setEntry,
+    clearEntry,
+    selectBook,
+  } = useHabit(PRIMARY_HABIT_ID)
 
   const byDate = useMemo(() => indexByDate(entries), [entries])
   const stats = useMemo(
@@ -36,6 +45,9 @@ function App() {
   }
 
   const todayEntry = byDate.get(today)
+  const todayBook = todayEntry?.bookId
+    ? booksById.get(todayEntry.bookId)
+    : activeBook
 
   return (
     <div className="min-h-full">
@@ -51,12 +63,20 @@ function App() {
           </p>
         </header>
 
+        {activeBook ? (
+          <div className="mb-3">
+            <BookChip book={activeBook} label="Currently reading" />
+          </div>
+        ) : null}
+
         <div className="mb-4">
           <LogToday
-            key={`${today}:${todayEntry?.value ?? ''}:${todayEntry?.note ?? ''}`}
+            key={`${today}:${todayEntry?.value ?? ''}:${todayEntry?.note ?? ''}:${todayEntry?.bookId ?? ''}`}
             today={today}
             unit={habit.unit}
             entry={todayEntry}
+            initialBook={todayBook}
+            onSelectBook={selectBook}
             onSave={setEntry}
           />
         </div>
@@ -83,10 +103,13 @@ function App() {
           <ContributionGrid
             habit={habit}
             entriesByDate={byDate}
+            booksById={booksById}
+            activeBook={activeBook}
             currentStreak={stats.current}
             today={today}
             onSetEntry={setEntry}
             onClearEntry={clearEntry}
+            onSelectBook={selectBook}
           />
         </section>
 
@@ -104,6 +127,8 @@ function App() {
 
         <footer className="mt-8 text-center text-[12px] text-[#8c959f]">
           Local-first · your data lives only in this browser.
+          <br />
+          Book data from Open Library and Google Books.
         </footer>
       </div>
     </div>

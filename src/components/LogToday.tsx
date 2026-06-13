@@ -1,23 +1,41 @@
 import { useState } from 'react'
-import type { Entry } from '../types'
+import type { Book, Entry } from '../types'
 import { formatLong } from '../lib/date'
+import type { BookSearchResult } from '../lib/bookSearch'
+import { BookAutocomplete } from './BookAutocomplete'
 
 interface LogTodayProps {
   today: string
   unit: string
   /** Today's existing entry, if any (used to prefill). */
   entry: Entry | undefined
-  onSave: (date: string, value: number, note: string) => void
+  /** Book to attach by default — the existing entry's book, else the active one. */
+  initialBook: Book | undefined
+  /** Enrich + persist a chosen search result, returning the merged book. */
+  onSelectBook: (result: BookSearchResult) => Promise<Book>
+  onSave: (date: string, value: number, note: string, bookId?: string) => void
 }
 
-export function LogToday({ today, unit, entry, onSave }: LogTodayProps) {
+export function LogToday({
+  today,
+  unit,
+  entry,
+  initialBook,
+  onSelectBook,
+  onSave,
+}: LogTodayProps) {
   const [value, setValue] = useState(
     entry && entry.value > 0 ? String(entry.value) : '',
   )
   const [note, setNote] = useState(entry?.note ?? '')
+  const [attachedBook, setAttachedBook] = useState<Book | undefined>(initialBook)
 
   const submit = () => {
-    onSave(today, value.trim() === '' ? 0 : Number(value), note)
+    onSave(today, value.trim() === '' ? 0 : Number(value), note, attachedBook?.id)
+  }
+
+  const handleSelect = async (result: BookSearchResult) => {
+    setAttachedBook(await onSelectBook(result))
   }
 
   return (
@@ -26,6 +44,31 @@ export function LogToday({ today, unit, entry, onSave }: LogTodayProps) {
         Log today{' '}
         <span className="font-normal text-[#656d76]">· {formatLong(today)}</span>
       </div>
+
+      <div className="mb-3">
+        <label className="mb-1 block text-[11px] font-medium text-[#656d76]">
+          Book <span className="font-normal text-[#8c959f]">(optional)</span>
+        </label>
+        <BookAutocomplete
+          onSelect={handleSelect}
+          placeholder={attachedBook ? 'Search to change book…' : 'Search for a book…'}
+        />
+        {attachedBook ? (
+          <div className="mt-1.5 flex items-center gap-1 text-[12px] text-[#1f2328]">
+            <span className="text-[#656d76]">Attaching to</span>
+            <span className="min-w-0 truncate font-medium">{attachedBook.title}</span>
+            <button
+              type="button"
+              onClick={() => setAttachedBook(undefined)}
+              aria-label="Detach book"
+              className="shrink-0 rounded px-1 text-[#656d76] hover:text-[#cf222e]"
+            >
+              ✕
+            </button>
+          </div>
+        ) : null}
+      </div>
+
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="sm:w-32">
           <label className="mb-1 block text-[11px] font-medium text-[#656d76]">

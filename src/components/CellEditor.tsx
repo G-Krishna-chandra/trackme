@@ -1,27 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Entry } from '../types'
+import type { Book, Entry } from '../types'
 import { formatLong } from '../lib/date'
+import type { BookSearchResult } from '../lib/bookSearch'
+import { BookAutocomplete } from './BookAutocomplete'
 
 interface CellEditorProps {
   date: string
   unit: string
   /** Existing entry for this date, if any. */
   entry: Entry | undefined
+  /** Book to attach by default — the entry's book, or the active book if today. */
+  initialBook: Book | undefined
   /** Anchor rect (viewport coords) of the clicked cell. */
   rect: DOMRect
-  onSave: (date: string, value: number, note: string) => void
+  onSelectBook: (result: BookSearchResult) => Promise<Book>
+  onSave: (date: string, value: number, note: string, bookId?: string) => void
   onClear: (date: string) => void
   onClose: () => void
 }
 
-const CARD_W = 232
-const EST_H = 188
+const CARD_W = 280
+const EST_H = 320
 
 export function CellEditor({
   date,
   unit,
   entry,
+  initialBook,
   rect,
+  onSelectBook,
   onSave,
   onClear,
   onClose,
@@ -30,6 +37,7 @@ export function CellEditor({
     entry && entry.value > 0 ? String(entry.value) : '',
   )
   const [note, setNote] = useState(entry?.note ?? '')
+  const [attachedBook, setAttachedBook] = useState<Book | undefined>(initialBook)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -52,7 +60,11 @@ export function CellEditor({
   const left = Math.max(8, Math.min(rawLeft, window.innerWidth - CARD_W - 8))
 
   const submit = () => {
-    onSave(date, value.trim() === '' ? 0 : Number(value), note)
+    onSave(date, value.trim() === '' ? 0 : Number(value), note, attachedBook?.id)
+  }
+
+  const handleSelect = async (result: BookSearchResult) => {
+    setAttachedBook(await onSelectBook(result))
   }
 
   return (
@@ -60,10 +72,11 @@ export function CellEditor({
       {/* Click-outside backdrop. */}
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className="fixed z-50 w-[232px] rounded-lg border border-[#d0d7de] bg-white p-3 shadow-xl"
+        className="fixed z-50 rounded-lg border border-[#d0d7de] bg-white p-3 shadow-xl"
         style={{
           top,
           left,
+          width: CARD_W,
           transform: placeAbove ? 'translateY(-100%)' : undefined,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -71,6 +84,30 @@ export function CellEditor({
         <div className="mb-2 text-[13px] font-semibold text-[#1f2328]">
           {formatLong(date)}
         </div>
+
+        <label className="mb-1 block text-[11px] font-medium text-[#656d76]">
+          Book <span className="font-normal text-[#8c959f]">(optional)</span>
+        </label>
+        <BookAutocomplete
+          onSelect={handleSelect}
+          placeholder={attachedBook ? 'Search to change book…' : 'Search for a book…'}
+        />
+        {attachedBook ? (
+          <div className="mb-2 mt-1.5 flex items-center gap-1 text-[12px] text-[#1f2328]">
+            <span className="text-[#656d76]">Attaching to</span>
+            <span className="min-w-0 truncate font-medium">{attachedBook.title}</span>
+            <button
+              type="button"
+              onClick={() => setAttachedBook(undefined)}
+              aria-label="Detach book"
+              className="shrink-0 rounded px-1 text-[#656d76] hover:text-[#cf222e]"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="mb-2" />
+        )}
 
         <label className="mb-1 block text-[11px] font-medium text-[#656d76]">
           {unit.charAt(0).toUpperCase() + unit.slice(1)}

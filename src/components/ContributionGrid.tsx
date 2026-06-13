@@ -1,25 +1,32 @@
 import { useCallback, useMemo, useState } from 'react'
-import type { Entry, Habit, Level } from '../types'
+import type { Book, Entry, Habit, Level } from '../types'
 import { computeLevel } from '../lib/coloring'
 import { cellColor } from '../lib/colors'
 import { buildGrid, CELL, GAP, PITCH, WEEKDAY_COL } from '../lib/grid'
 import { formatShort, monthShort } from '../lib/date'
+import type { BookSearchResult } from '../lib/bookSearch'
 import { DayCell } from './DayCell'
 import { CellEditor } from './CellEditor'
 
 interface ContributionGridProps {
   habit: Habit
   entriesByDate: Map<string, Entry>
+  /** Books keyed by id, to resolve an entry's attached title for the tooltip. */
+  booksById: Map<string, Book>
+  /** Currently-reading book, the default attachment when editing today. */
+  activeBook: Book | undefined
   currentStreak: number
   today: string
-  onSetEntry: (date: string, value: number, note: string) => void
+  onSetEntry: (date: string, value: number, note: string, bookId?: string) => void
   onClearEntry: (date: string) => void
+  onSelectBook: (result: BookSearchResult) => Promise<Book>
 }
 
 interface Hover {
   date: string
   value: number | null
-  note: string | undefined
+  /** Attached book title (preferred) or freeform note, for the detail line. */
+  detail: string | undefined
   rect: DOMRect
 }
 
@@ -34,10 +41,13 @@ const WEEKDAY_LABELS: Record<number, string> = { 1: 'Mon', 3: 'Wed', 5: 'Fri' }
 export function ContributionGrid({
   habit,
   entriesByDate,
+  booksById,
+  activeBook,
   currentStreak,
   today,
   onSetEntry,
   onClearEntry,
+  onSelectBook,
 }: ContributionGridProps) {
   const { columns } = useMemo(() => buildGrid(today), [today])
   const [hover, setHover] = useState<Hover | null>(null)
@@ -72,14 +82,15 @@ export function ContributionGrid({
   const onEnter = useCallback(
     (date: string, rect: DOMRect) => {
       const e = entriesByDate.get(date)
+      const bookTitle = e?.bookId ? booksById.get(e.bookId)?.title : undefined
       setHover({
         date,
         value: e ? e.value : null,
-        note: e?.note,
+        detail: bookTitle ?? e?.note,
         rect,
       })
     },
-    [entriesByDate],
+    [entriesByDate, booksById],
   )
   const onLeave = useCallback(() => setHover(null), [])
   const onSelect = useCallback((date: string, rect: DOMRect) => {
@@ -89,6 +100,15 @@ export function ContributionGrid({
 
   const selectedEntry = selection
     ? entriesByDate.get(selection.date)
+    : undefined
+  // Default attachment: the entry's own book, or the active book when it's today
+  // (past days don't silently inherit "currently reading").
+  const selectedInitialBook = selection
+    ? selectedEntry?.bookId
+      ? booksById.get(selectedEntry.bookId)
+      : selection.date === today
+        ? activeBook
+        : undefined
     : undefined
 
   return (
@@ -178,7 +198,7 @@ export function ContributionGrid({
         <Tooltip
           date={hover.date}
           value={hover.value}
-          note={hover.note}
+          detail={hover.detail}
           unit={habit.unit}
           currentStreak={currentStreak}
           rect={hover.rect}
@@ -190,9 +210,11 @@ export function ContributionGrid({
           date={selection.date}
           unit={habit.unit}
           entry={selectedEntry}
+          initialBook={selectedInitialBook}
           rect={selection.rect}
-          onSave={(date, value, note) => {
-            onSetEntry(date, value, note)
+          onSelectBook={onSelectBook}
+          onSave={(date, value, note, bookId) => {
+            onSetEntry(date, value, note, bookId)
             setSelection(null)
           }}
           onClear={(date) => {
@@ -209,13 +231,14 @@ export function ContributionGrid({
 interface TooltipProps {
   date: string
   value: number | null
-  note: string | undefined
+  /** Book title (preferred) or note, appended to the raw-value line. */
+  detail: string | undefined
   unit: string
   currentStreak: number
   rect: DOMRect
 }
 
-function Tooltip({ date, value, note, unit, currentStreak, rect }: TooltipProps) {
+function Tooltip({ date, value, detail, unit, currentStreak, rect }: TooltipProps) {
   const top = rect.top - 8
   const left = Math.max(
     72,
@@ -231,8 +254,10 @@ function Tooltip({ date, value, note, unit, currentStreak, rect }: TooltipProps)
       className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-md bg-[#1f2328] px-2 py-1.5 text-center text-[11px] leading-tight text-white shadow-lg"
       style={{ top, left, maxWidth: 220 }}
     >
-      <div className="font-semibold">{headline}</div>
-      {note ? <div className="text-[#d0d7de]">{note}</div> : null}
+      <div className="font-semibold">
+        {headline}
+        {detail ? <span className="font-normal"> · {detail}</span> : null}
+      </div>
       <div className="mt-0.5 text-[#8c959f]">
         Current streak: {currentStreak}{' '}
         {currentStreak === 1 ? 'day' : 'days'}
