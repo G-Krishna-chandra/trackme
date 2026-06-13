@@ -1,13 +1,13 @@
-// Runtime-only cover resolution. A book's stored coverUrl comes from Google
-// Books `imageLinks`, which is absent on metadata-only editions and dropped
-// under the unauthenticated quota — and when a volume has neither a thumbnail
-// nor an ISBN, no identifier-keyed source can fire. So we resolve covers here,
-// in the render path, via a multi-source chain whose key step is Open Library's
-// title-addressable search (not gated on the book already having an identifier).
+// Runtime-only cover resolution. We resolve covers in the render path rather
+// than trusting a book's stored coverUrl, because that URL comes from whatever
+// edition Google ranked first — often a no-name reprint, not the WORK's
+// recognizable primary-edition cover. The chain below prefers the canonical,
+// highest-res cover and falls back through progressively-less-ideal sources,
+// stopping at the first image that actually loads.
 //
 // Results are cached per book id (negative results too) and in-flight lookups
-// are de-duped, so the same id never fires the title lookup twice. This NEVER
-// mutates stored book records.
+// are de-duped, so the same id never fires the OL canonical lookup twice. This
+// NEVER mutates stored book records.
 
 export interface CoverInput {
   id: string
@@ -17,9 +17,11 @@ export interface CoverInput {
   coverUrl: string | null
 }
 
+const OL_SEARCH = 'https://openlibrary.org/search.json'
+const OL_COVER_OLID = 'https://covers.openlibrary.org/b/olid'
 const OL_COVER_ID = 'https://covers.openlibrary.org/b/id'
 const OL_COVER_ISBN = 'https://covers.openlibrary.org/b/isbn'
-const OL_SEARCH = 'https://openlibrary.org/search.json'
+const LONGITOOD = 'https://bookcover.longitood.com/bookcover'
 
 const cache = new Map<string, string | null>()
 const inflight = new Map<string, Promise<string | null>>()
@@ -37,11 +39,16 @@ function abortError(): DOMException {
   return new DOMException('Aborted', 'AbortError')
 }
 
+/** First name in a comma-joined author string. */
+function firstAuthorOf(author: string): string {
+  return author.split(',')[0]?.trim() ?? ''
+}
+
 /**
- * Resolve true if the image URL actually loads. Cross-origin load/error events
- * fire without CORS, so this is a reliable existence probe — and with OL's
- * `default=false`, a missing cover 404s (error) instead of returning a grey
- * placeholder that would "load" successfully.
+ * Resolve true if the image URL actually loads as a real cover. Cross-origin
+ * load/error events fire without CORS, so this is a reliable probe — and
+ * `naturalWidth > 1` rejects the ~1px "image not available" sentinels that some
+ * sources return with a 200, treating them as a miss so we advance.
  */
 function imageLoads(url: string, signal?: AbortSignal): Promise<boolean> {
   return new Promise((resolve) => {
@@ -57,56 +64,106 @@ function imageLoads(url: string, signal?: AbortSignal): Promise<boolean> {
       signal?.removeEventListener('abort', onAbort)
       resolve(ok)
     }
-    img.onload = () => finish(true)
+    img.onload = () => finish(img.naturalWidth > 1)
     img.onerror = () => finish(false)
     signal?.addEventListener('abort', onAbort)
     img.src = url
   })
 }
 
-/** Open Library title-addressable lookup → a cover_i, if any. */
-async function olCoverIdByTitle(
+/** GET JSON, or null on any non-abort failure. Rethrows AbortError. */
+async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T | null> {
+  try {
+    const res = await fetch(url, { signal })
+    if (!res.ok) return null
+    return (await res.json()) as T
+  } catch (err) {
+    if (isAbort(err)) throw err
+    return null
+  }
+}
+
+/** Goodreads-grade cover via the longitood proxy. Best-effort URL or null. */
+async function longitoodCover(
+  isbn13: string | null,
   title: string,
-  author: string,
+  firstAuthor: string,
   signal?: AbortSignal,
-): Promise<number | null> {
-  const url =
-    `${OL_SEARCH}?title=${encodeURIComponent(title)}` +
-    `&author=${encodeURIComponent(author)}&fields=cover_i&limit=1`
-  const res = await fetch(url, { signal })
-  if (!res.ok) return null
-  const data = (await res.json()) as { docs?: { cover_i?: number }[] }
-  const coverId = data.docs?.[0]?.cover_i
-  return typeof coverId === 'number' ? coverId : null
+): Promise<string | null> {
+  const url = isbn13
+    ? `${LONGITOOD}?isbn=${encodeURIComponent(isbn13)}`
+    : `${LONGITOOD}?book_title=${encodeURIComponent(title)}&author_name=${encodeURIComponent(firstAuthor)}`
+  const data = await fetchJson<{ url?: string }>(url, signal)
+  return data?.url ?? null
+}
+
+/** Open Library WORK canonical cover URL (large), or null. */
+async function olWorkCover(
+  title: string,
+  firstAuthor: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const q = `${title} ${firstAuthor}`.trim()
+  const url = `${OL_SEARCH}?q=${encodeURIComponent(q)}&fields=cover_edition_key,cover_i&limit=1`
+  const data = await fetchJson<{
+    docs?: { cover_edition_key?: string; cover_i?: number }[]
+  }>(url, signal)
+  const doc = data?.docs?.[0]
+  if (!doc) return null
+  if (doc.cover_edition_key) {
+    return `${OL_COVER_OLID}/${doc.cover_edition_key}-L.jpg?default=false`
+  }
+  if (typeof doc.cover_i === 'number') {
+    return `${OL_COVER_ID}/${doc.cover_i}-L.jpg?default=false`
+  }
+  return null
+}
+
+/** Force https, strip edge=curl, and bump the tiny zoom=1 to a larger size. */
+function upgradeGoogleCover(url: string): string {
+  return url
+    .replace(/^http:\/\//i, 'https://')
+    .replace(/([?&])edge=curl(&|$)/gi, (_m, sep: string, tail: string) =>
+      tail === '&' ? sep : '',
+    )
+    .replace(/([?&]zoom=)1\b/i, (_m, prefix: string) => `${prefix}2`)
 }
 
 async function doResolve(
   input: CoverInput,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  // a. the stored Google thumbnail, if present.
-  if (input.coverUrl && (await imageLoads(input.coverUrl, signal))) {
-    return input.coverUrl
-  }
+  const firstAuthor = firstAuthorOf(input.author)
+  const isbn = input.isbn
+  const isbn13 = isbn && /^\d{13}$/.test(isbn) ? isbn : null
+
+  // 1. Goodreads-grade cover via hosted proxy (best-effort, popular edition).
+  //    To drop the third-party proxy later, delete this single block — steps
+  //    2-4 are a fully native, self-sufficient fallback chain.
+  const proxy = await longitoodCover(isbn13, input.title, firstAuthor, signal)
+  if (proxy && (await imageLoads(proxy, signal))) return proxy
   if (signal?.aborted) throw abortError()
 
-  // b. Open Library by ISBN (default=false → 404 when missing, so we advance).
-  if (input.isbn) {
-    const byIsbn = `${OL_COVER_ISBN}/${encodeURIComponent(input.isbn)}-M.jpg?default=false`
+  // 2. Open Library WORK canonical cover, large — the recognizable edition.
+  const work = await olWorkCover(input.title, firstAuthor, signal)
+  if (work && (await imageLoads(work, signal))) return work
+  if (signal?.aborted) throw abortError()
+
+  // 3. Open Library by the book's own ISBN, large.
+  if (isbn) {
+    const byIsbn = `${OL_COVER_ISBN}/${encodeURIComponent(isbn)}-L.jpg?default=false`
     if (await imageLoads(byIsbn, signal)) return byIsbn
   }
   if (signal?.aborted) throw abortError()
 
-  // c. Open Library title lookup → cover by cover_i (works without any ISBN).
-  if (input.title) {
-    const coverId = await olCoverIdByTitle(input.title, input.author, signal)
-    if (coverId !== null) {
-      const byId = `${OL_COVER_ID}/${coverId}-M.jpg`
-      if (await imageLoads(byId, signal)) return byId
-    }
+  // 4. Google thumbnail, upgraded. Lowest priority — this is the source that
+  //    gave us the wrong edition in the first place.
+  if (input.coverUrl) {
+    const upgraded = upgradeGoogleCover(input.coverUrl)
+    if (await imageLoads(upgraded, signal)) return upgraded
   }
 
-  // d. nothing loaded → caller shows the neutral placeholder.
+  // 5. nothing loaded → caller shows the neutral placeholder.
   return null
 }
 
