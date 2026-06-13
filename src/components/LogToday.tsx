@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { Book, Entry } from '../types'
 import { formatLong } from '../lib/date'
-import type { BookSearchResult } from '../lib/bookSearch'
 import { BookAutocomplete } from './BookAutocomplete'
 
 interface LogTodayProps {
@@ -11,8 +10,8 @@ interface LogTodayProps {
   entry: Entry | undefined
   /** Book to attach by default — the existing entry's book, else the active one. */
   initialBook: Book | undefined
-  /** Enrich + persist a chosen search result, returning the merged book. */
-  onSelectBook: (result: BookSearchResult) => Promise<Book>
+  /** Persist a chosen book and set it as currently reading; returns the book. */
+  onSelectBook: (book: Book) => Book
   onSave: (date: string, value: number, note: string, bookId?: string) => void
 }
 
@@ -34,8 +33,8 @@ export function LogToday({
     onSave(today, value.trim() === '' ? 0 : Number(value), note, attachedBook?.id)
   }
 
-  const handleSelect = async (result: BookSearchResult) => {
-    setAttachedBook(await onSelectBook(result))
+  const handleSelect = (book: Book) => {
+    setAttachedBook(onSelectBook(book))
   }
 
   return (

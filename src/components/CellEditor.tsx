@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Book, Entry } from '../types'
 import { formatLong } from '../lib/date'
-import type { BookSearchResult } from '../lib/bookSearch'
 import { BookAutocomplete } from './BookAutocomplete'
 
 interface CellEditorProps {
@@ -13,7 +12,7 @@ interface CellEditorProps {
   initialBook: Book | undefined
   /** Anchor rect (viewport coords) of the clicked cell. */
   rect: DOMRect
-  onSelectBook: (result: BookSearchResult) => Promise<Book>
+  onSelectBook: (book: Book) => Book
   onSave: (date: string, value: number, note: string, bookId?: string) => void
   onClear: (date: string) => void
   onClose: () => void
@@ -63,8 +62,8 @@ export function CellEditor({
     onSave(date, value.trim() === '' ? 0 : Number(value), note, attachedBook?.id)
   }
 
-  const handleSelect = async (result: BookSearchResult) => {
-    setAttachedBook(await onSelectBook(result))
+  const handleSelect = (book: Book) => {
+    setAttachedBook(onSelectBook(book))
   }
 
   return (

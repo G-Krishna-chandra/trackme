@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { searchBooks, type BookSearchResult } from '../lib/bookSearch'
+import type { Book } from '../types'
+import { searchBooks } from '../lib/bookSearch'
 import { BookCover } from './BookCover'
 
 interface BookAutocompleteProps {
-  /**
-   * Called when a result row is clicked. Should perform enrichment + persist
-   * (e.g. useHabit.selectBook). Awaited so the row can show an "Adding…" state.
-   */
-  onSelect: (result: BookSearchResult) => void | Promise<void>
+  /** Called with the chosen book (already a complete profile) to attach it. */
+  onSelect: (book: Book) => void
   placeholder?: string
 }
 
@@ -15,17 +13,17 @@ const DEBOUNCE_MS = 280
 const MIN_CHARS = 3
 
 /**
- * Typeahead over Open Library. One search call per debounced keystroke, with
- * the in-flight request aborted on each new keystroke. The note field is always
- * available as a fallback, so a search outage never blocks logging.
+ * Typeahead over Google Books (with Open Library recall fallback handled in
+ * searchBooks). One search call per debounced keystroke, with the in-flight
+ * request aborted on each new keystroke. The note field stays available as a
+ * fallback, so a search outage never blocks logging.
  */
 export function BookAutocomplete({ onSelect, placeholder }: BookAutocompleteProps) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<BookSearchResult[]>([])
+  const [results, setResults] = useState<Book[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
-  const [selectingId, setSelectingId] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -76,16 +74,11 @@ export function BookAutocomplete({ onSelect, placeholder }: BookAutocompleteProp
   // Abort any in-flight request on unmount.
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const handleRow = async (r: BookSearchResult) => {
-    setSelectingId(r.workId)
-    try {
-      await onSelect(r)
-    } finally {
-      setSelectingId(null)
-      setQuery('')
-      setResults([])
-      setOpen(false)
-    }
+  const handleRow = (book: Book) => {
+    onSelect(book)
+    setQuery('')
+    setResults([])
+    setOpen(false)
   }
 
   const showEmpty =
@@ -122,34 +115,28 @@ export function BookAutocomplete({ onSelect, placeholder }: BookAutocompleteProp
             </div>
           ) : null}
 
-          {results.map((r) => (
+          {results.map((book) => (
             <button
-              key={r.workId}
+              key={book.id}
               type="button"
-              disabled={selectingId !== null}
-              onClick={() => handleRow(r)}
-              className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left hover:bg-[#f3f4f6] disabled:opacity-60"
+              onClick={() => handleRow(book)}
+              className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left hover:bg-[#f3f4f6]"
             >
               <BookCover
-                url={r.coverThumbUrl}
-                title={r.title}
+                url={book.coverUrl}
+                title={book.title}
                 width={28}
                 height={40}
               />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] text-[#1f2328]">
-                  {r.title}
+                  {book.title}
                 </div>
                 <div className="truncate text-[11px] text-[#656d76]">
-                  {r.author}
-                  {r.firstPublishYear ? ` · ${r.firstPublishYear}` : ''}
+                  {book.author}
+                  {book.firstPublishYear ? ` · ${book.firstPublishYear}` : ''}
                 </div>
               </div>
-              {selectingId === r.workId ? (
-                <span className="shrink-0 text-[11px] text-[#8c959f]">
-                  Adding…
-                </span>
-              ) : null}
             </button>
           ))}
         </div>

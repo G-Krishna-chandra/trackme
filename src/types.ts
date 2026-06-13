@@ -32,16 +32,18 @@ export interface Entry {
  * cover fallback). Stored in its own `books` store and referenced by entries.
  */
 export interface Book {
-  /** Open Library work id (the OL…W part of `key`). Stable; upserted by id. */
+  /** Canonical id so the same title de-dupes across sources to one row:
+   *  isbn13 || isbn10 || "gb:"+googleVolumeId || "ol:"+olWorkId. Upserted by id. */
   id: string
   title: string
   /** First author, or comma-joined author names. */
   author: string
-  /** Resolved cover URL (OL -M preferred, Google Books thumbnail fallback). */
+  /** Resolved cover URL: Google thumbnail (https, de-curled), else Open Library
+   *  by ISBN, else null (placeholder). */
   coverUrl: string | null
-  /** Page count from Google Books, or null when unknown. */
+  /** Page count (from the Google Books profile), or null when unknown. */
   pageCount: number | null
-  /** First ISBN from the search doc, used to join to Google Books. */
+  /** Chosen ISBN (isbn13 preferred), used for the canonical id and cover. */
   isbn: string | null
   firstPublishYear: number | null
   /** Provenance, e.g. ["openlibrary", "googlebooks"]. */

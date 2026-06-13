@@ -4,7 +4,6 @@ import { computeLevel } from '../lib/coloring'
 import { cellColor } from '../lib/colors'
 import { buildGrid, CELL, GAP, PITCH, WEEKDAY_COL } from '../lib/grid'
 import { formatShort, monthShort } from '../lib/date'
-import type { BookSearchResult } from '../lib/bookSearch'
 import { DayCell } from './DayCell'
 import { CellEditor } from './CellEditor'
 
@@ -19,7 +18,7 @@ interface ContributionGridProps {
   today: string
   onSetEntry: (date: string, value: number, note: string, bookId?: string) => void
   onClearEntry: (date: string) => void
-  onSelectBook: (result: BookSearchResult) => Promise<Book>
+  onSelectBook: (book: Book) => Book
 }
 
 interface Hover {

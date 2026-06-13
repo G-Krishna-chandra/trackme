@@ -4,7 +4,6 @@ import type { EntryRepository } from '../data/EntryRepository'
 import { LocalStorageRepository } from '../data/LocalStorageRepository'
 import type { BookRepository } from '../data/BookRepository'
 import { LocalStorageBookRepository } from '../data/LocalStorageBookRepository'
-import { buildBookProfile, type BookSearchResult } from '../lib/bookSearch'
 
 // Single repository instances for the app. Swap these lines to change backends.
 const repo: EntryRepository = new LocalStorageRepository()
@@ -22,10 +21,11 @@ export interface UseHabit {
   /** Remove a day's entry entirely. */
   clearEntry: (date: string) => void
   /**
-   * Enrich a selected search result via Google Books, persist the merged book
-   * (upsert by id), set it as currently reading, and return it.
+   * Persist a chosen search result (already a complete profile — no enrichment
+   * round-trip), upsert by its canonical id, set it as currently reading, and
+   * return it.
    */
-  selectBook: (result: BookSearchResult) => Promise<Book>
+  selectBook: (book: Book) => Book
 }
 
 export function useHabit(habitId: string): UseHabit {
@@ -75,8 +75,7 @@ export function useHabit(habitId: string): UseHabit {
   )
 
   const selectBook = useCallback(
-    async (result: BookSearchResult): Promise<Book> => {
-      const book = await buildBookProfile(result)
+    (book: Book): Book => {
       bookRepo.upsertBook(book)
       bookRepo.setActiveBookId(habitId, book.id)
       setBooks(bookRepo.listBooks())
