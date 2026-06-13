@@ -16,6 +16,38 @@ export interface Entry {
   date: string
   /** Integer amount done that day, e.g. pages read. */
   value: number
-  /** Optional freeform note, e.g. the book title. */
+  /** Optional freeform note, e.g. the book title. Kept as the fallback when no
+   *  book is attached and for annotations alongside one. */
   note?: string
+  /** Optional foreign key into the books store (Open Library work id). Pure
+   *  metadata — it rides alongside the entry and never affects cell levels.
+   *  Old entries predate this and have it undefined; that keeps working. */
+  bookId?: string
+}
+
+/**
+ * A denormalized snapshot of a book, captured at selection time so it renders
+ * offline forever without re-fetching. Merged from Open Library (identity,
+ * cover) and a single Google Books enrichment call (page count, description,
+ * cover fallback). Stored in its own `books` store and referenced by entries.
+ */
+export interface Book {
+  /** Open Library work id (the OL…W part of `key`). Stable; upserted by id. */
+  id: string
+  title: string
+  /** First author, or comma-joined author names. */
+  author: string
+  /** Resolved cover URL (OL -M preferred, Google Books thumbnail fallback). */
+  coverUrl: string | null
+  /** Page count from Google Books, or null when unknown. */
+  pageCount: number | null
+  /** First ISBN from the search doc, used to join to Google Books. */
+  isbn: string | null
+  firstPublishYear: number | null
+  /** Provenance, e.g. ["openlibrary", "googlebooks"]. */
+  source: string[]
+  // Captured now for the deferred per-book / bookshelf UI (see README roadmap).
+  description: string | null
+  publishedDate: string | null
+  categories: string[] | null
 }
