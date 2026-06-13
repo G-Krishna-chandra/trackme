@@ -84,15 +84,52 @@ self-relative grid.
 
 ### Data model
 
-Two stores, multi-habit by design even though v1 surfaces one habit:
+Multi-habit by design even though v1 surfaces one habit:
 
 - `habits`: `{ id, name, unit, color }` — seeded with one row:
   `{ id: "reading", name: "Reading", unit: "pages", color: "green" }`.
-- `entries`: `{ habitId, date (yyyy-mm-dd), value (int), note? }` — one entry per
-  `(habitId, date)`.
+- `entries`: `{ habitId, date (yyyy-mm-dd), value (int), note?, bookId? }` — one
+  entry per `(habitId, date)`. `bookId` is optional metadata (see below); it
+  never affects coloring.
+- `books`: denormalized book snapshots `{ id, title, author, coverUrl,
+  pageCount, isbn, firstPublishYear, source, … }`, keyed by Open Library work
+  id and referenced by `entries.bookId`. A per-habit "currently reading" pointer
+  lives alongside.
 
 Adding a second habit later (gym, etc.) is just another `habits` row — no schema
 change, and every habit gets its own independent graph (never a composite).
+
+---
+
+## Book tracking
+
+The Reading habit can attach a real book to each day. Coloring stays
+**pages-only and self-relative** — a book is pure metadata riding alongside the
+entry and never shifts a cell's level.
+
+Two free, keyless, CORS-enabled APIs are used at different moments so we never
+fire two calls per keystroke:
+
+- **Typeahead → Open Library.** One debounced `search.json` call per keystroke
+  (the in-flight request is aborted on the next keystroke). Results are
+  de-duplicated by work id; covers come straight from `covers.openlibrary.org`.
+- **Enrichment → Google Books.** Exactly one call, only when you click a result:
+  an ISBN join when the doc has one, otherwise a title+author fallback. It
+  backfills page count, description, categories, and a cover fallback. It is
+  **best-effort** — if Google Books errors or finds nothing, the book is saved
+  anyway with `pageCount: null`.
+
+The selected book becomes **"currently reading,"** so new daily logs default to
+it — the everyday path is just *type pages, Save*. Switching books is a new
+search; detaching (✕) logs with no book.
+
+**Free-text always works.** The note field is independent of search, so if the
+API is offline, slow, or the book isn't found, you can still type a plain title
+and Save (entry stored with `bookId` null). A book-search outage never stands
+between you and logging pages — that's the local-first guarantee.
+
+The full merged profile (including `pageCount`) is captured now; the per-book
+progress UI is a deliberate follow-up (see roadmap).
 
 ---
 
@@ -112,10 +149,11 @@ npm run preview
 
 ### Using it
 
-- **Log today** with the control at the top (pages + optional note, e.g. a book
-  title).
-- **Click any day** in the grid to add or edit that date's value and note.
-- **Hover any day** to see the raw page count, the note, and your current streak.
+- **Log today** with the control at the top (pages + optional book + optional
+  note). Search a title to attach a book, or just type pages and Save.
+- **Click any day** in the grid to add or edit that date's value, book, and note.
+- **Hover any day** to see the raw page count, the attached book title (or note),
+  and your current streak.
 - Header shows **current streak, longest streak, total pages, and pages this
   week**. A streak is consecutive days with pages > 0; today not-yet-logged
   doesn't break it (today is still open) — only a fully-elapsed zero day does.
@@ -126,6 +164,10 @@ Your data lives only in your browser. Clearing site data resets it.
 
 ## Roadmap
 
+- **Per-book progress UI.** The full book profile (including `pageCount`) is
+  already captured, so these are clean follow-ups: a **progress bar** (pages
+  logged for a book ÷ its `pageCount`), a **bookshelf** of covers, and
+  **per-book totals**.
 - **More habits.** The data layer is already multi-habit. Next is a habit
   switcher and a way to add habits with their own unit and color. Each keeps its
   own per-habit graph.
@@ -146,17 +188,26 @@ Your data lives only in your browser. Clearing site data resets it.
 
 ```
 src/
-  types.ts                       Habit / Entry / Level types
+  types.ts                       Habit / Entry / Book / Level types
   lib/
     coloring.ts                  the rolling self-relative level algorithm
     colors.ts                    color ramps per habit color
     stats.ts                     streaks, totals, weekly aggregation
     grid.ts                      53-week grid geometry
     date.ts                      local-timezone ISO date helpers
+    bookSearch.ts                Open Library search + Google Books merge
   data/
-    EntryRepository.ts           storage interface (the swap point)
-    LocalStorageRepository.ts    localStorage implementation
+    EntryRepository.ts           entry storage interface (the swap point)
+    LocalStorageRepository.ts    localStorage entries
+    BookRepository.ts            book storage interface (parallel boundary)
+    LocalStorageBookRepository.ts  localStorage books + currently-reading
     seed.ts                      the seeded Reading habit
-  store/useHabit.ts              React hook over the repository
-  components/                    grid, cell, editor, stats, log, sparkline
+  store/useHabit.ts              React hook over both repositories
+  components/                    grid, cell, editor, stats, log, sparkline,
+                                 book autocomplete / cover / chip
 ```
+
+---
+
+Book data from [Open Library](https://openlibrary.org) and
+[Google Books](https://books.google.com).
