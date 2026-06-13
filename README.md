@@ -92,9 +92,10 @@ Multi-habit by design even though v1 surfaces one habit:
   entry per `(habitId, date)`. `bookId` is optional metadata (see below); it
   never affects coloring.
 - `books`: denormalized book snapshots `{ id, title, author, coverUrl,
-  pageCount, isbn, firstPublishYear, source, … }`, keyed by Open Library work
-  id and referenced by `entries.bookId`. A per-habit "currently reading" pointer
-  lives alongside.
+  pageCount, isbn, firstPublishYear, source, … }`, referenced by
+  `entries.bookId`. The `id` is canonical — `isbn13 || isbn10 || "gb:"+googleId
+  || "ol:"+olWorkId` — so the same title from either source de-dupes to one row.
+  A per-habit "currently reading" pointer lives alongside.
 
 Adding a second habit later (gym, etc.) is just another `habits` row — no schema
 change, and every habit gets its own independent graph (never a composite).
@@ -107,17 +108,32 @@ The Reading habit can attach a real book to each day. Coloring stays
 **pages-only and self-relative** — a book is pure metadata riding alongside the
 entry and never shifts a cell's level.
 
-Two free, keyless, CORS-enabled APIs are used at different moments so we never
-fire two calls per keystroke:
+The typeahead has to tolerate misspelled, partial, and approximate titles —
+"find it even if I typed it wrong, the way Google does." That's a **recall**
+problem (will the right book come back *at all*), so it's solved at the
+**source**, not with a client-side fuzzy library (fuzzy matching can only
+reorder results that already came back — it can't improve recall).
 
-- **Typeahead → Open Library.** One debounced `search.json` call per keystroke
-  (the in-flight request is aborted on the next keystroke). Results are
-  de-duplicated by work id; covers come straight from `covers.openlibrary.org`.
-- **Enrichment → Google Books.** Exactly one call, only when you click a result:
-  an ISBN join when the doc has one, otherwise a title+author fallback. It
-  backfills page count, description, categories, and a cover fallback. It is
-  **best-effort** — if Google Books errors or finds nothing, the book is saved
-  anyway with `pageCount: null`.
+- **Primary search → Google Books.** One keyless call per debounced keystroke
+  (`maxResults=6&printType=books`). It's Google's own index, so spell-correction,
+  partial titles, and author+fragment matching behave like google.com. The
+  search payload is the **complete profile** (page count, description, cover,
+  ISBNs, categories…), so a Google-sourced pick needs **no separate enrichment
+  call** — selecting fires zero network requests.
+- **Typo insurance.** If the primary returns zero items, it retries **once** with
+  a normalized query (lowercased, punctuation stripped, whitespace collapsed)
+  before falling through. No retry loops.
+- **Recall fallback → Open Library.** Only when Google still yields nothing
+  (rare), `search.json` results are mapped into the same shape — preserving
+  breadth for obscure, old, or non-English titles Google occasionally misses.
+
+Covers resolve in order: Google `imageLinks.thumbnail` (forced to `https`, with
+`edge=curl` stripped) → else Open Library by ISBN
+(`covers.openlibrary.org/b/isbn/{isbn}-M.jpg`) → else a neutral placeholder.
+`source` records what actually populated the row (`["googlebooks"]`,
+`["openlibrary"]`, or both — e.g. a Google profile with an Open Library cover).
+Request hygiene: ~280 ms debounce, min 3 chars, and an `AbortController` cancels
+the in-flight request on every keystroke.
 
 The selected book becomes **"currently reading,"** so new daily logs default to
 it — the everyday path is just *type pages, Save*. Switching books is a new
@@ -128,8 +144,8 @@ API is offline, slow, or the book isn't found, you can still type a plain title
 and Save (entry stored with `bookId` null). A book-search outage never stands
 between you and logging pages — that's the local-first guarantee.
 
-The full merged profile (including `pageCount`) is captured now; the per-book
-progress UI is a deliberate follow-up (see roadmap).
+The full profile (including `pageCount`) is captured now; the per-book progress
+UI is a deliberate follow-up (see roadmap).
 
 ---
 
@@ -195,7 +211,7 @@ src/
     stats.ts                     streaks, totals, weekly aggregation
     grid.ts                      53-week grid geometry
     date.ts                      local-timezone ISO date helpers
-    bookSearch.ts                Open Library search + Google Books merge
+    bookSearch.ts                Google Books search + Open Library fallback
   data/
     EntryRepository.ts           entry storage interface (the swap point)
     LocalStorageRepository.ts    localStorage entries
