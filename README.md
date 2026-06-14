@@ -163,6 +163,24 @@ npm run build    # type-checks, then builds to dist/
 npm run preview
 ```
 
+### Optional: Google Books API key
+
+Book search works with no setup, but the keyless Google Books endpoint has a low
+anonymous quota — under heavy use it gets throttled and search quietly degrades
+to the weaker Open Library fallback. A free API key removes that limit:
+
+1. In the [Google Cloud Console](https://console.cloud.google.com): enable the
+   **Books API**, create an **API key**, and restrict it to the Books API and
+   your HTTP referrer.
+2. Copy `.env.example` to `.env.local` and set the value:
+   ```bash
+   VITE_GOOGLE_BOOKS_KEY=your_key_here
+   ```
+3. Restart `npm run dev` (Vite reads env only at startup).
+
+`.env.local` is git-ignored, so your key never lands in the repo. The app runs
+fine without a key — just rate-limited.
+
 ### Using it
 
 - **Log today** with the control at the top (pages + optional book + optional

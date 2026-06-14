@@ -9,7 +9,7 @@ interface BookAutocompleteProps {
   placeholder?: string
 }
 
-const DEBOUNCE_MS = 280
+const DEBOUNCE_MS = 350
 const MIN_CHARS = 3
 
 /**

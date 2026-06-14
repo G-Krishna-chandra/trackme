@@ -26,6 +26,39 @@ const LONGITOOD = 'https://bookcover.longitood.com/bookcover'
 const cache = new Map<string, string | null>()
 const inflight = new Map<string, Promise<string | null>>()
 
+// Cap concurrent cover resolutions so a 6-row dropdown doesn't fan out into a
+// burst of Open Library requests. The cache + in-flight dedupe (below) already
+// stop the SAME book id from re-fetching across keystrokes; this bounds the
+// number of DISTINCT ids resolving at once.
+const MAX_CONCURRENT = 3
+let activeResolutions = 0
+const slotWaiters: Array<() => void> = []
+
+function acquireSlot(): Promise<void> {
+  if (activeResolutions < MAX_CONCURRENT) {
+    activeResolutions++
+    return Promise.resolve()
+  }
+  return new Promise<void>((resolve) => slotWaiters.push(resolve))
+}
+
+function releaseSlot(): void {
+  activeResolutions--
+  if (slotWaiters.length > 0 && activeResolutions < MAX_CONCURRENT) {
+    activeResolutions++
+    slotWaiters.shift()!()
+  }
+}
+
+async function withCoverSlot<T>(fn: () => Promise<T>): Promise<T> {
+  await acquireSlot()
+  try {
+    return await fn()
+  } finally {
+    releaseSlot()
+  }
+}
+
 /** Previously resolved cover for an id (undefined = not resolved yet). */
 export function cachedCover(id: string): string | null | undefined {
   return cache.get(id)
@@ -191,7 +224,7 @@ export async function resolveCover(
     }
   }
 
-  const pending = doResolve(input, signal)
+  const pending = withCoverSlot(() => doResolve(input, signal))
   inflight.set(input.id, pending)
   try {
     const url = await pending

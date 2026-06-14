@@ -13,6 +13,10 @@ dist-ssr
 .vite
 *.local
 
+# Local env — never commit secrets (the Google Books API key lives here)
+.env.local
+.env*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

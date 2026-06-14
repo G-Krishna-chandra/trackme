@@ -19,6 +19,11 @@ import type { Book } from '../types'
 const GB_VOLUMES = 'https://www.googleapis.com/books/v1/volumes'
 const OL_SEARCH = 'https://openlibrary.org/search.json'
 
+// Optional Google Books API key (provided via Vite env, may be undefined).
+// Keyless works but hits a low anonymous quota that degrades search to the
+// weaker Open Library fallback under heavy use; a key removes that. See README.
+const GB_KEY: string | undefined = import.meta.env.VITE_GOOGLE_BOOKS_KEY
+
 function olCoverByIsbn(isbn: string): string {
   return `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-M.jpg`
 }
@@ -92,7 +97,8 @@ async function googleVolumes(
   if (query.length === 0) return []
   // country=US makes Google return complete volumeInfo (incl. imageLinks) for
   // unauthenticated requests that otherwise come back partial.
-  const url = `${GB_VOLUMES}?q=${encodeURIComponent(query)}&maxResults=6&printType=books&country=US`
+  const keyParam = GB_KEY ? `&key=${encodeURIComponent(GB_KEY)}` : ''
+  const url = `${GB_VOLUMES}?q=${encodeURIComponent(query)}&maxResults=6&printType=books&country=US${keyParam}`
   const data = await tryFetchJson<{ items?: GBItem[] }>(url, signal)
   return data?.items ?? []
 }
