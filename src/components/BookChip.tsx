@@ -13,7 +13,7 @@ interface BookChipProps {
 export function BookChip({ book, label, onDetach }: BookChipProps) {
   return (
     <div className="flex items-center gap-2.5 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-2">
-      <BookCover url={book.coverUrl} title={book.title} width={28} height={40} />
+      <BookCover key={book.id} book={book} width={28} height={40} />
       <div className="min-w-0 flex-1">
         {label ? (
           <div className="text-[10px] font-medium uppercase tracking-wide text-[#8c959f]">

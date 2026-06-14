@@ -90,7 +90,9 @@ async function googleVolumes(
   signal?: AbortSignal,
 ): Promise<GBItem[]> {
   if (query.length === 0) return []
-  const url = `${GB_VOLUMES}?q=${encodeURIComponent(query)}&maxResults=6&printType=books`
+  // country=US makes Google return complete volumeInfo (incl. imageLinks) for
+  // unauthenticated requests that otherwise come back partial.
+  const url = `${GB_VOLUMES}?q=${encodeURIComponent(query)}&maxResults=6&printType=books&country=US`
   const data = await tryFetchJson<{ items?: GBItem[] }>(url, signal)
   return data?.items ?? []
 }

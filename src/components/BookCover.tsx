@@ -1,27 +1,64 @@
 import { useEffect, useState } from 'react'
+import type { Book } from '../types'
+import { cachedCover, resolveCover } from '../lib/cover'
 
 interface BookCoverProps {
-  url: string | null
-  /** For the alt text / accessibility. */
-  title: string
+  book: Book
   width: number
   height: number
 }
 
 /**
- * A book cover image that degrades to a neutral placeholder when there is no
- * URL or the image fails to load — never a broken image. Covers are served
- * straight from covers.openlibrary.org (or the Google Books thumbnail).
+ * A book cover that shows a neutral placeholder immediately, then resolves a
+ * real cover lazily (via the shared, cached resolver) and swaps it in. Works
+ * even when the stored coverUrl is null (the currently-reading case). If the
+ * resolved image fails at render time it falls back to the placeholder and
+ * stops — no retry loop. Cover resolution is runtime-only; stored book records
+ * are never mutated.
  */
-export function BookCover({ url, title, width, height }: BookCoverProps) {
-  const [failed, setFailed] = useState(false)
+export function BookCover({ book, width, height }: BookCoverProps) {
+  const [url, setUrl] = useState<string | null>(() => cachedCover(book.id) ?? null)
+  const [imgFailed, setImgFailed] = useState(false)
 
-  // Reset when the URL changes (component may be reused for a different book).
-  useEffect(() => setFailed(false), [url])
+  useEffect(() => {
+    setImgFailed(false)
+
+    // Already resolved (including a known no-cover null) — use it, skip work.
+    const known = cachedCover(book.id)
+    if (known !== undefined) {
+      setUrl(known)
+      return
+    }
+
+    let cancelled = false
+    const ctrl = new AbortController()
+    setUrl(null) // placeholder while resolving a fresh book
+    resolveCover(
+      {
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        isbn: book.isbn,
+        coverUrl: book.coverUrl,
+      },
+      ctrl.signal,
+    )
+      .then((resolved) => {
+        if (!cancelled) setUrl(resolved)
+      })
+      .catch(() => {
+        /* aborted or failed — placeholder stays */
+      })
+
+    return () => {
+      cancelled = true
+      ctrl.abort()
+    }
+  }, [book.id, book.title, book.author, book.isbn, book.coverUrl])
 
   const style = { width, height } as const
 
-  if (!url || failed) {
+  if (!url || imgFailed) {
     return (
       <div
         aria-hidden
@@ -38,11 +75,11 @@ export function BookCover({ url, title, width, height }: BookCoverProps) {
   return (
     <img
       src={url}
-      alt={`Cover of ${title}`}
+      alt={`Cover of ${book.title}`}
       width={width}
       height={height}
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => setImgFailed(true)}
       style={style}
       className="shrink-0 rounded-sm object-cover"
     />

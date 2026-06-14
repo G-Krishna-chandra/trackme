@@ -122,12 +122,7 @@ export function BookAutocomplete({ onSelect, placeholder }: BookAutocompleteProp
               onClick={() => handleRow(book)}
               className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left hover:bg-[#f3f4f6]"
             >
-              <BookCover
-                url={book.coverUrl}
-                title={book.title}
-                width={28}
-                height={40}
-              />
+              <BookCover book={book} width={28} height={40} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] text-[#1f2328]">
                   {book.title}
