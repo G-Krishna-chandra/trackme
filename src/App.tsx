@@ -1,13 +1,26 @@
 import { useState } from 'react'
 import { ReadingView } from './components/ReadingView'
 import { GymView } from './components/GymView'
+import { MinutesHabitView } from './components/MinutesHabitView'
 
-type Tab = 'reading' | 'gym'
+type Tab = 'reading' | 'gym' | 'guitar'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'reading', label: 'Reading' },
   { id: 'gym', label: 'Gym' },
+  { id: 'guitar', label: 'Guitar' },
 ]
+
+function renderView(tab: Tab) {
+  switch (tab) {
+    case 'reading':
+      return <ReadingView />
+    case 'gym':
+      return <GymView />
+    case 'guitar':
+      return <MinutesHabitView habitId="guitar" />
+  }
+}
 
 function App() {
   const [tab, setTab] = useState<Tab>('reading')
@@ -19,7 +32,7 @@ function App() {
           <h1 className="text-2xl font-bold tracking-tight text-[#1f2328]">
             TrackMe
           </h1>
-          <nav className="mt-3 flex gap-1 border-b border-[#d0d7de]">
+          <nav className="mt-3 flex flex-wrap gap-1 border-b border-[#d0d7de]">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -37,7 +50,7 @@ function App() {
           </nav>
         </header>
 
-        {tab === 'reading' ? <ReadingView /> : <GymView />}
+        {renderView(tab)}
 
         {tab === 'reading' ? (
           <footer className="mt-8 text-center text-[12px] text-[#8c959f]">

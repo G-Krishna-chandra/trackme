@@ -7,6 +7,7 @@ import type { Habit } from '../types'
 export const SEED_HABITS: Habit[] = [
   { id: 'reading', name: 'Reading', unit: 'pages', color: 'green' },
   { id: 'gym', name: 'Gym', unit: 'volume', color: 'purple' },
+  { id: 'guitar', name: 'Guitar', unit: 'minutes', color: 'orange' },
 ]
 
 export const PRIMARY_HABIT_ID = 'reading'
