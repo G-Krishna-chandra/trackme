@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Book } from '../types'
-import { cachedCover, resolveCover } from '../lib/cover'
+import { cachedCover, resolveCover, upgradeGoogleCover } from '../lib/cover'
 
 interface BookCoverProps {
   book: Book
@@ -8,31 +8,41 @@ interface BookCoverProps {
   height: number
 }
 
+/** The cover to paint immediately: a previously-resolved cache hit, else the
+ *  upgraded Google thumbnail from the search payload, else null (placeholder). */
+function instantCover(book: Book): string | null {
+  const cached = cachedCover(book.id)
+  if (cached !== undefined) return cached
+  return book.coverUrl ? upgradeGoogleCover(book.coverUrl) : null
+}
+
 /**
- * A book cover that shows a neutral placeholder immediately, then resolves a
- * real cover lazily (via the shared, cached resolver) and swaps it in. Works
- * even when the stored coverUrl is null (the currently-reading case). If the
- * resolved image fails at render time it falls back to the placeholder and
- * stops — no retry loop. Cover resolution is runtime-only; stored book records
- * are never mutated.
+ * A book cover that paints instantly — the Google thumbnail (or a cached
+ * resolution) shows with no blank gap — then upgrades to the canonical, high-res
+ * cover in the background and swaps it in flicker-free (the resolver has already
+ * probe-loaded it). A cache hit skips the resolve chain entirely. A ≤1px or
+ * broken image falls back to the placeholder. Resolution is the resolver's job;
+ * stored book records get the resolved cover written back there.
  */
 export function BookCover({ book, width, height }: BookCoverProps) {
-  const [url, setUrl] = useState<string | null>(() => cachedCover(book.id) ?? null)
-  const [imgFailed, setImgFailed] = useState(false)
+  const [src, setSrc] = useState<string | null>(() => instantCover(book))
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    setImgFailed(false)
+    setFailed(false)
 
-    // Already resolved (including a known no-cover null) — use it, skip work.
-    const known = cachedCover(book.id)
-    if (known !== undefined) {
-      setUrl(known)
+    // Already resolved (incl. a known no-cover null) → paint it, skip the chain.
+    const cached = cachedCover(book.id)
+    if (cached !== undefined) {
+      setSrc(cached)
       return
     }
 
+    // Cold path: paint the instant thumbnail now, upgrade in the background.
+    setSrc(book.coverUrl ? upgradeGoogleCover(book.coverUrl) : null)
+
     let cancelled = false
     const ctrl = new AbortController()
-    setUrl(null) // placeholder while resolving a fresh book
     resolveCover(
       {
         id: book.id,
@@ -44,10 +54,14 @@ export function BookCover({ book, width, height }: BookCoverProps) {
       ctrl.signal,
     )
       .then((resolved) => {
-        if (!cancelled) setUrl(resolved)
+        if (cancelled || !resolved) return // nothing better — keep the thumbnail
+        // The resolver already verified + warmed this URL, so the swap is
+        // flicker-free. Reset `failed` in case the thumbnail had errored.
+        setFailed(false)
+        setSrc((cur) => (resolved === cur ? cur : resolved))
       })
       .catch(() => {
-        /* aborted or failed — placeholder stays */
+        /* aborted or failed — keep whatever is painted */
       })
 
     return () => {
@@ -58,7 +72,7 @@ export function BookCover({ book, width, height }: BookCoverProps) {
 
   const style = { width, height } as const
 
-  if (!url || imgFailed) {
+  if (!src || failed) {
     return (
       <div
         aria-hidden
@@ -74,12 +88,15 @@ export function BookCover({ book, width, height }: BookCoverProps) {
 
   return (
     <img
-      src={url}
+      src={src}
       alt={`Cover of ${book.title}`}
       width={width}
       height={height}
       loading="lazy"
-      onError={() => setImgFailed(true)}
+      onLoad={(e) => {
+        if (e.currentTarget.naturalWidth <= 1) setFailed(true)
+      }}
+      onError={() => setFailed(true)}
       style={style}
       className="shrink-0 rounded-sm object-cover"
     />
