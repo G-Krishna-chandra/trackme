@@ -12,6 +12,9 @@ export interface GymRepository {
   /** Insert or replace a session by id (one session per calendar day). */
   upsertSession(session: GymSession): void
 
+  /** Upsert many sessions in one write (import), keyed by (habitId, date). */
+  bulkUpsertSessions(sessions: GymSession[]): void
+
   /** Remove the session for (habitId, date) if present. */
   deleteSession(habitId: string, date: string): void
 

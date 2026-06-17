@@ -27,6 +27,8 @@ export interface UseGym {
   ) => void
   deleteSession: (date: string) => void
   updateSettings: (settings: GymSettings) => void
+  /** Bulk upsert imported sessions (idempotent — keyed by date). */
+  importSessions: (sessions: GymSession[]) => void
 }
 
 export function useGym(): UseGym {
@@ -76,6 +78,14 @@ export function useGym(): UseGym {
     setSettingsState(next)
   }, [])
 
+  const importSessions = useCallback(
+    (incoming: GymSession[]) => {
+      gymRepo.bulkUpsertSessions(incoming)
+      refresh()
+    },
+    [refresh],
+  )
+
   const rememberedNames = useMemo(
     () => rememberedExerciseNames(sessions),
     [sessions],
@@ -89,5 +99,6 @@ export function useGym(): UseGym {
     saveSession,
     deleteSession,
     updateSettings,
+    importSessions,
   }
 }
