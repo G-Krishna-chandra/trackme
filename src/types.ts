@@ -25,6 +25,44 @@ export interface Entry {
   bookId?: string
 }
 
+// ---- Gym (second habit) ----------------------------------------------------
+// Gym is the additive second-habit case: its own coloring rule (per training
+// type) and its own per-set logger. Reading is untouched.
+
+export type GymType = 'push' | 'pull' | 'legs' | 'arms' | 'other'
+
+export interface GymSet {
+  reps: number
+  /** Added/external weight in the user's weight unit (0 is allowed). */
+  weight: number
+  /** Warmup sets are recorded but excluded from working volume. */
+  warmup: boolean
+}
+
+export interface GymExercise {
+  name: string
+  /** Bodyweight moves (pullups, dips) add the user's bodyweight to each set. */
+  isBodyweight: boolean
+  sets: GymSet[]
+}
+
+/** One training session on a day. One session per calendar day is assumed. */
+export interface GymSession {
+  id: string
+  habitId: string // "gym"
+  /** ISO yyyy-mm-dd, local. */
+  date: string
+  type: GymType
+  exercises: GymExercise[]
+  note?: string
+}
+
+export interface GymSettings {
+  /** Single editable bodyweight, used for bodyweight-exercise volume. */
+  bodyweight: number
+  weightUnit: 'kg' | 'lbs'
+}
+
 /**
  * A denormalized snapshot of a book, captured at selection time so it renders
  * offline forever without re-fetching. Merged from Open Library (identity,

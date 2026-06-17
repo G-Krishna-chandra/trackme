@@ -21,9 +21,13 @@ function write<T>(key: string, value: T): void {
 /** localStorage-backed EntryRepository. Stores ONLY raw entries (no levels). */
 export class LocalStorageRepository implements EntryRepository {
   constructor() {
-    // Seed the habit row(s) once, on first ever run.
+    // Ensure every seed habit exists. Merge (not overwrite) so existing rows —
+    // and any future user edits to them — are preserved while newly-added seed
+    // habits (e.g. Gym) appear for installs that predate them.
     const existing = read<Habit[]>(HABITS_KEY, [])
-    if (existing.length === 0) write(HABITS_KEY, SEED_HABITS)
+    const known = new Set(existing.map((h) => h.id))
+    const missing = SEED_HABITS.filter((h) => !known.has(h.id))
+    if (missing.length > 0) write(HABITS_KEY, [...existing, ...missing])
   }
 
   getHabits(): Habit[] {
