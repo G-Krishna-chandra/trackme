@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react'
 import { useGym } from '../store/useGym'
 import { todayISO, formatLong } from '../lib/date'
 import {
+  aggregateByDate,
   bestVolumeByType,
   gymWeeklyTotals,
-  indexSessionsByDate,
   sessionsThisWeek,
   volumeThisWeek,
 } from '../lib/gym'
@@ -12,6 +12,7 @@ import { GymSessionForm } from './GymSessionForm'
 import { GymStats } from './GymStats'
 import { GymGrid } from './GymGrid'
 import { GymImport } from './GymImport'
+import { GymSync } from './GymSync'
 import { Sparkline } from './Sparkline'
 import type { GymSession } from '../types'
 import type { WeightUnit } from '../lib/hevyImport'
@@ -24,12 +25,17 @@ export function GymView() {
     settings,
     rememberedNames,
     saveSession,
-    deleteSession,
+    updateSession,
+    deleteSessionById,
     updateSettings,
     importSessions,
+    runHevySync,
   } = useGym()
 
-  const sessionsByDate = useMemo(() => indexSessionsByDate(sessions), [sessions])
+  const byDate = useMemo(
+    () => aggregateByDate(sessions, settings.bodyweight),
+    [sessions, settings.bodyweight],
+  )
   const stats = useMemo(
     () => ({
       sessionsWk: sessionsThisWeek(sessions, today),
@@ -47,9 +53,9 @@ export function GymView() {
     return <div className="p-8 text-[#1f2328]">No habit configured.</div>
   }
 
-  const logSession = sessionsByDate.get(logDate)
+  const logSession = byDate.get(logDate)?.primary
   const logSig = logSession
-    ? `${logSession.type}:${logSession.exercises.length}:${logSession.exercises.reduce((n, e) => n + e.sets.length, 0)}:${logSession.note ?? ''}`
+    ? `${logSession.id}:${logSession.type}:${logSession.exercises.length}:${logSession.exercises.reduce((n, e) => n + e.sets.length, 0)}:${logSession.note ?? ''}`
     : 'new'
 
   const onBwChange = (v: string) => {
@@ -117,7 +123,10 @@ export function GymView() {
         </p>
       </div>
 
-      {/* Import from Hevy (manual logger below stays as a fallback) */}
+      {/* Live sync from the Hevy API (manual logger below stays a fallback) */}
+      <GymSync lastSyncedAt={settings.lastSyncedAt} onSync={runHevySync} />
+
+      {/* Import from a Hevy export file (offline alternative to live sync) */}
       <GymImport
         existingSessions={sessions}
         currentUnit={settings.weightUnit}
@@ -151,8 +160,12 @@ export function GymView() {
           bodyweight={settings.bodyweight}
           rememberedNames={rememberedNames}
           variant="inline"
-          onSave={saveSession}
-          onDelete={deleteSession}
+          onSave={(date, type, exercises, note) =>
+            logSession
+              ? updateSession(logSession, type, exercises, note)
+              : saveSession(date, type, exercises, note)
+          }
+          onDelete={() => logSession && deleteSessionById(logSession.id)}
         />
       </div>
 
@@ -177,12 +190,13 @@ export function GymView() {
         <GymGrid
           color={habit.color}
           today={today}
-          sessionsByDate={sessionsByDate}
+          sessions={sessions}
           bodyweight={settings.bodyweight}
           weightUnit={settings.weightUnit}
           rememberedNames={rememberedNames}
-          onSaveSession={saveSession}
-          onDeleteSession={deleteSession}
+          onCreateSession={saveSession}
+          onUpdateSession={updateSession}
+          onDeleteSession={(s) => deleteSessionById(s.id)}
         />
       </section>
 

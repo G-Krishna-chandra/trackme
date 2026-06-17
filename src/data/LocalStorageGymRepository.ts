@@ -1,4 +1,4 @@
-import type { GymSession, GymSettings } from '../types'
+import type { GymExercise, GymSession, GymSettings } from '../types'
 import type { GymRepository } from './GymRepository'
 
 const SESSIONS_KEY = 'trackme.gymSessions'
@@ -19,6 +19,19 @@ function write<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
+/** Preserve the user-editable guessed fields (type + per-exercise bodyweight)
+ *  from a prior synced session onto a freshly-pulled one. */
+function mergePreservingEdits(prev: GymSession, fresh: GymSession): GymSession {
+  const bwByName = new Map(
+    prev.exercises.map((e) => [e.name.toLowerCase(), e.isBodyweight]),
+  )
+  const exercises: GymExercise[] = fresh.exercises.map((e) => ({
+    ...e,
+    isBodyweight: bwByName.get(e.name.toLowerCase()) ?? e.isBodyweight,
+  }))
+  return { ...fresh, type: prev.type, exercises }
+}
+
 /** localStorage-backed GymRepository. Stores ONLY raw sessions (no volume/level). */
 export class LocalStorageGymRepository implements GymRepository {
   listSessions(habitId: string): GymSession[] {
@@ -29,10 +42,7 @@ export class LocalStorageGymRepository implements GymRepository {
 
   upsertSession(session: GymSession): void {
     const all = read<GymSession[]>(SESSIONS_KEY, [])
-    // One session per (habitId, date) — replace any existing same-day session.
-    const idx = all.findIndex(
-      (s) => s.habitId === session.habitId && s.date === session.date,
-    )
+    const idx = all.findIndex((s) => s.id === session.id)
     if (idx >= 0) all[idx] = session
     else all.push(session)
     write(SESSIONS_KEY, all)
@@ -40,25 +50,41 @@ export class LocalStorageGymRepository implements GymRepository {
 
   bulkUpsertSessions(sessions: GymSession[]): void {
     const all = read<GymSession[]>(SESSIONS_KEY, [])
-    const indexByKey = new Map(all.map((s, i) => [`${s.habitId}:${s.date}`, i]))
+    const indexById = new Map(all.map((s, i) => [s.id, i]))
     for (const s of sessions) {
-      const key = `${s.habitId}:${s.date}`
-      const idx = indexByKey.get(key)
+      const idx = indexById.get(s.id)
       if (idx !== undefined) all[idx] = s
       else {
-        indexByKey.set(key, all.length)
+        indexById.set(s.id, all.length)
         all.push(s)
       }
     }
     write(SESSIONS_KEY, all)
   }
 
-  deleteSession(habitId: string, date: string): void {
+  deleteSessionById(id: string): void {
     const all = read<GymSession[]>(SESSIONS_KEY, [])
     write(
       SESSIONS_KEY,
-      all.filter((s) => !(s.habitId === habitId && s.date === date)),
+      all.filter((s) => s.id !== id),
     )
+  }
+
+  syncImportedSessions(habitId: string, incoming: GymSession[]): void {
+    const all = read<GymSession[]>(SESSIONS_KEY, [])
+    // Keep everything that isn't a synced session of this habit (manual logs,
+    // file imports, and other habits) — never touched.
+    const untouched = all.filter((s) => !(s.habitId === habitId && s.hevyId))
+    const prevByHevyId = new Map(
+      all
+        .filter((s) => s.habitId === habitId && s.hevyId)
+        .map((s) => [s.hevyId as string, s]),
+    )
+    const merged = incoming.map((fresh) => {
+      const prev = fresh.hevyId ? prevByHevyId.get(fresh.hevyId) : undefined
+      return prev ? mergePreservingEdits(prev, fresh) : fresh
+    })
+    write(SESSIONS_KEY, [...untouched, ...merged])
   }
 
   getSettings(): GymSettings {

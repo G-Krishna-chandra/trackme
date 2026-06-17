@@ -4,28 +4,35 @@ import { computeGymLevel } from '../lib/gymColoring'
 import { cellColor } from '../lib/colors'
 import { buildGrid, CELL, GAP, PITCH, WEEKDAY_COL } from '../lib/grid'
 import { formatShort, monthShort } from '../lib/date'
-import { GYM_TYPE_LABELS, topExercise, workingVolume } from '../lib/gym'
+import { aggregateByDate, GYM_TYPE_LABELS, topExercise } from '../lib/gym'
 import { DayCell } from './DayCell'
 import { GymSessionForm } from './GymSessionForm'
 
 interface GymGridProps {
   color: string
   today: string
-  sessionsByDate: Map<string, GymSession>
+  sessions: GymSession[]
   bodyweight: number
   weightUnit: 'kg' | 'lbs'
   rememberedNames: string[]
-  onSaveSession: (
+  /** Create a manual session for a date with no existing primary session. */
+  onCreateSession: (
     date: string,
     type: GymType,
     exercises: GymExercise[],
     note: string,
   ) => void
-  onDeleteSession: (date: string) => void
+  /** Edit the date's primary session in place (preserves id/hevyId). */
+  onUpdateSession: (
+    existing: GymSession,
+    type: GymType,
+    exercises: GymExercise[],
+    note: string,
+  ) => void
+  onDeleteSession: (session: GymSession) => void
 }
 
 interface Hover {
-  date: string
   headline: string
   sub: string | null
   rect: DOMRect
@@ -33,36 +40,35 @@ interface Hover {
 
 const WEEKDAY_LABELS: Record<number, string> = { 1: 'Mon', 3: 'Wed', 5: 'Fri' }
 
-function workingSetCount(session: GymSession): number {
-  let n = 0
-  for (const ex of session.exercises) for (const s of ex.sets) if (!s.warmup) n++
-  return n
-}
-
 export function GymGrid({
   color,
   today,
-  sessionsByDate,
+  sessions,
   bodyweight,
   weightUnit,
   rememberedNames,
-  onSaveSession,
+  onCreateSession,
+  onUpdateSession,
   onDeleteSession,
 }: GymGridProps) {
   const { columns } = useMemo(() => buildGrid(today), [today])
   const [hover, setHover] = useState<Hover | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
 
-  // Precompute per-date volume + type, then per-cell level (per-type window).
+  // Aggregate per day (sum volume, primary type), then derive per-cell level.
+  const aggregate = useMemo(
+    () => aggregateByDate(sessions, bodyweight),
+    [sessions, bodyweight],
+  )
   const { volumesByDate, typeByDate } = useMemo(() => {
     const vols = new Map<string, number>()
     const types = new Map<string, GymType>()
-    for (const [date, s] of sessionsByDate) {
-      vols.set(date, workingVolume(s, bodyweight))
-      types.set(date, s.type)
+    for (const [date, day] of aggregate) {
+      vols.set(date, day.volume)
+      types.set(date, day.type)
     }
     return { volumesByDate: vols, typeByDate: types }
-  }, [sessionsByDate, bodyweight])
+  }, [aggregate])
 
   const levels = useMemo(() => {
     const m = new Map<string, Level>()
@@ -94,30 +100,29 @@ export function GymGrid({
 
   const onEnter = useCallback(
     (date: string, rect: DOMRect) => {
-      const s = sessionsByDate.get(date)
-      if (!s) {
-        setHover({ date, headline: `${formatShort(date)} — no session`, sub: null, rect })
+      const day = aggregate.get(date)
+      if (!day) {
+        setHover({ headline: `${formatShort(date)} — no session`, sub: null, rect })
         return
       }
-      const vol = Math.round(workingVolume(s, bodyweight))
-      const top = topExercise(s, bodyweight)
-      const detail = top ?? `${workingSetCount(s)} sets`
+      const vol = Math.round(day.volume)
+      const top = topExercise(day.primary, bodyweight)
+      const extra = day.sessions.length > 1 ? ` · ${day.sessions.length} workouts` : ''
       setHover({
-        date,
         headline: `${formatShort(date)} — ${vol.toLocaleString()} ${weightUnit}`,
-        sub: `${GYM_TYPE_LABELS[s.type]} · ${detail}`,
+        sub: `${GYM_TYPE_LABELS[day.type]}${top ? ` · ${top}` : ''}${extra}`,
         rect,
       })
     },
-    [sessionsByDate, bodyweight, weightUnit],
+    [aggregate, bodyweight, weightUnit],
   )
   const onLeave = useCallback(() => setHover(null), [])
-  const onSelect = useCallback((date: string, _rect: DOMRect) => {
+  const onSelect = useCallback((date: string) => {
     setHover(null)
     setSelected(date)
   }, [])
 
-  const selectedSession = selected ? sessionsByDate.get(selected) : undefined
+  const primary = selected ? aggregate.get(selected)?.primary : undefined
 
   return (
     <div className="relative">
@@ -224,17 +229,18 @@ export function GymGrid({
             <GymSessionForm
               key={selected}
               date={selected}
-              initial={selectedSession}
+              initial={primary}
               weightUnit={weightUnit}
               bodyweight={bodyweight}
               rememberedNames={rememberedNames}
               variant="modal"
               onSave={(date, type, exercises, note) => {
-                onSaveSession(date, type, exercises, note)
+                if (primary) onUpdateSession(primary, type, exercises, note)
+                else onCreateSession(date, type, exercises, note)
                 setSelected(null)
               }}
-              onDelete={(date) => {
-                onDeleteSession(date)
+              onDelete={() => {
+                if (primary) onDeleteSession(primary)
                 setSelected(null)
               }}
               onCancel={() => setSelected(null)}

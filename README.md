@@ -181,6 +181,28 @@ to the weaker Open Library fallback. A free API key removes that limit:
 `.env.local` is git-ignored, so your key never lands in the repo. The app runs
 fine without a key — just rate-limited.
 
+### Sync from Hevy (optional, requires Hevy Pro)
+
+The Gym habit can pull your workouts straight from the [Hevy](https://hevy.com)
+API. Hevy's API is key-authenticated and not browser-callable (no CORS), so the
+request is routed through the Vite dev-server proxy — the key stays server-side
+and is **never sent to the browser**:
+
+1. Get your API key at
+   [hevy.com/settings?developer](https://hevy.com/settings?developer) (Hevy Pro).
+2. Add it to `.env.local` — note **no `VITE_` prefix**, so it is never bundled
+   into client code:
+   ```bash
+   HEVY_API_KEY=your_key_here
+   ```
+3. Restart `npm run dev`, open the **Gym** tab, and click **Sync from Hevy**.
+
+The browser only ever calls same-origin `/api/hevy/*`; `vite.config.ts` proxies
+that to `api.hevyapp.com` and injects the `api-key` header server-side. Sync is a
+full, idempotent pull (re-syncing never duplicates and picks up new/edited
+workouts); it only works under `npm run dev`. There's also a **file import**
+(Hevy → Export Workouts) on the Gym view if you don't have Pro.
+
 ### Using it
 
 - **Log today** with the control at the top (pages + optional book + optional

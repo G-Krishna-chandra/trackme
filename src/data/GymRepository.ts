@@ -2,21 +2,30 @@ import type { GymSession, GymSettings } from '../types'
 
 /**
  * Storage boundary for Gym data, parallel to EntryRepository / BookRepository
- * (both left untouched). Sessions are per-habit; settings (bodyweight + unit)
- * are a single global record. A future IndexedDB/synced backend can satisfy the
- * same synchronous contract via an in-memory cache.
+ * (both left untouched). Sessions are stored by stable `id`; multiple sessions
+ * may share a date (e.g. a manual one plus a synced one) and the grid aggregates
+ * per day. The "currently reading"-style settings hold bodyweight + unit.
  */
 export interface GymRepository {
   listSessions(habitId: string): GymSession[]
 
-  /** Insert or replace a session by id (one session per calendar day). */
+  /** Insert or replace a session by its `id`. */
   upsertSession(session: GymSession): void
 
-  /** Upsert many sessions in one write (import), keyed by (habitId, date). */
+  /** Upsert many sessions in one write (file import), keyed by `id`. */
   bulkUpsertSessions(sessions: GymSession[]): void
 
-  /** Remove the session for (habitId, date) if present. */
-  deleteSession(habitId: string, date: string): void
+  /** Remove a session by its `id`. */
+  deleteSessionById(id: string): void
+
+  /**
+   * Idempotent Hevy sync: replace ALL previously-synced sessions (those with a
+   * hevyId) with `incoming`, while NEVER touching manual sessions (no hevyId).
+   * For a hevyId that already existed, the user-editable guessed fields (type
+   * and per-exercise isBodyweight) are preserved; sets/notes refresh from Hevy.
+   * Sessions whose hevyId is no longer returned are dropped (handles deletions).
+   */
+  syncImportedSessions(habitId: string, incoming: GymSession[]): void
 
   getSettings(): GymSettings
   setSettings(settings: GymSettings): void

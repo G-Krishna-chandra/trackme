@@ -44,10 +44,14 @@ export interface GymExercise {
   /** Bodyweight moves (pullups, dips) add the user's bodyweight to each set. */
   isBodyweight: boolean
   sets: GymSet[]
+  /** Hevy exercise template id, captured on import for a future muscle heat map. */
+  exerciseTemplateId?: string
 }
 
-/** One training session on a day. One session per calendar day is assumed. */
+/** A training session. Stored by stable `id`; multiple may share a date (e.g. a
+ *  manual session plus a synced one) — the grid aggregates per day. */
 export interface GymSession {
+  /** Stable id: "gym:<date>" for manual, "hevy:<hevyId>" for synced. */
   id: string
   habitId: string // "gym"
   /** ISO yyyy-mm-dd, local. */
@@ -55,12 +59,16 @@ export interface GymSession {
   type: GymType
   exercises: GymExercise[]
   note?: string
+  /** Hevy workout id — present only on synced sessions; the de-dupe key. */
+  hevyId?: string
 }
 
 export interface GymSettings {
   /** Single editable bodyweight, used for bodyweight-exercise volume. */
   bodyweight: number
   weightUnit: 'kg' | 'lbs'
+  /** ISO timestamp of the last successful Hevy sync, if any. */
+  lastSyncedAt?: string
 }
 
 /**
