@@ -1,9 +1,12 @@
 import type { WeekTotal } from '../lib/stats'
 import { formatShort } from '../lib/date'
+import { rampFor } from '../lib/colors'
 
 interface SparklineProps {
   data: WeekTotal[]
   unit: string
+  /** Habit color key. Omit for the original green (keeps Reading identical). */
+  color?: string
 }
 
 const W = 720
@@ -12,7 +15,13 @@ const PAD_X = 6
 const PAD_TOP = 12
 const PAD_BOTTOM = 10
 
-export function Sparkline({ data, unit }: SparklineProps) {
+export function Sparkline({ data, unit, color }: SparklineProps) {
+  // Default greens keep Reading pixel-identical; a color key derives the ramp.
+  const ramp = color ? rampFor(color) : null
+  const stroke = ramp ? ramp[4] : '#1f883d'
+  const fillColor = ramp ? ramp[2] : '#40c463'
+  const gradId = `spark-fill-${color ?? 'green'}`
+
   if (data.length < 2) {
     return (
       <div className="flex h-24 items-center justify-center text-[13px] text-[#8c959f]">
@@ -46,12 +55,12 @@ export function Sparkline({ data, unit }: SparklineProps) {
         viewBox={`0 0 ${W} ${H}`}
         className="block w-full"
         role="img"
-        aria-label="Weekly total pages over time"
+        aria-label={`Weekly total ${unit} over time`}
       >
         <defs>
-          <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#40c463" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#40c463" stopOpacity="0" />
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={fillColor} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={fillColor} stopOpacity="0" />
           </linearGradient>
         </defs>
         <line
@@ -63,17 +72,17 @@ export function Sparkline({ data, unit }: SparklineProps) {
           strokeWidth={1}
           vectorEffect="non-scaling-stroke"
         />
-        <path d={area} fill="url(#spark-fill)" />
+        <path d={area} fill={`url(#${gradId})`} />
         <path
           d={line}
           fill="none"
-          stroke="#1f883d"
+          stroke={stroke}
           strokeWidth={2}
           strokeLinejoin="round"
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
         />
-        <circle cx={last[0]} cy={last[1]} r={3} fill="#1f883d" />
+        <circle cx={last[0]} cy={last[1]} r={3} fill={stroke} />
       </svg>
       <div className="mt-1 flex items-center justify-between text-[11px] text-[#8c959f]">
         <span>Week of {formatShort(data[0].weekStart)}</span>
