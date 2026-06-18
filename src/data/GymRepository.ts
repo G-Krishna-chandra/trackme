@@ -12,9 +12,6 @@ export interface GymRepository {
   /** Insert or replace a session by its `id`. */
   upsertSession(session: GymSession): void
 
-  /** Upsert many sessions in one write (file import), keyed by `id`. */
-  bulkUpsertSessions(sessions: GymSession[]): void
-
   /** Remove a session by its `id`. */
   deleteSessionById(id: string): void
 

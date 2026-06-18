@@ -11,11 +11,8 @@ import {
 import { GymSessionForm } from './GymSessionForm'
 import { GymStats } from './GymStats'
 import { GymGrid } from './GymGrid'
-import { GymImport } from './GymImport'
 import { GymSync } from './GymSync'
 import { Sparkline } from './Sparkline'
-import type { GymSession } from '../types'
-import type { WeightUnit } from '../lib/hevyImport'
 
 export function GymView() {
   const today = todayISO()
@@ -28,7 +25,6 @@ export function GymView() {
     updateSession,
     deleteSessionById,
     updateSettings,
-    importSessions,
     runHevySync,
   } = useGym()
 
@@ -64,11 +60,6 @@ export function GymView() {
     if (v.trim() !== '' && Number.isFinite(n) && n >= 0) {
       updateSettings({ ...settings, bodyweight: n })
     }
-  }
-
-  const handleImport = (incoming: GymSession[], setUnit?: WeightUnit) => {
-    if (setUnit) updateSettings({ ...settings, weightUnit: setUnit })
-    importSessions(incoming)
   }
 
   return (
@@ -125,13 +116,6 @@ export function GymView() {
 
       {/* Live sync from the Hevy API (manual logger below stays a fallback) */}
       <GymSync lastSyncedAt={settings.lastSyncedAt} onSync={runHevySync} />
-
-      {/* Import from a Hevy export file (offline alternative to live sync) */}
-      <GymImport
-        existingSessions={sessions}
-        currentUnit={settings.weightUnit}
-        onImport={handleImport}
-      />
 
       {/* Log a session */}
       <div className="mb-6 rounded-lg border border-[#d0d7de] bg-white p-4">

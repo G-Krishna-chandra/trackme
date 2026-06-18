@@ -48,20 +48,6 @@ export class LocalStorageGymRepository implements GymRepository {
     write(SESSIONS_KEY, all)
   }
 
-  bulkUpsertSessions(sessions: GymSession[]): void {
-    const all = read<GymSession[]>(SESSIONS_KEY, [])
-    const indexById = new Map(all.map((s, i) => [s.id, i]))
-    for (const s of sessions) {
-      const idx = indexById.get(s.id)
-      if (idx !== undefined) all[idx] = s
-      else {
-        indexById.set(s.id, all.length)
-        all.push(s)
-      }
-    }
-    write(SESSIONS_KEY, all)
-  }
-
   deleteSessionById(id: string): void {
     const all = read<GymSession[]>(SESSIONS_KEY, [])
     write(

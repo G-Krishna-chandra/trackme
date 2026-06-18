@@ -35,8 +35,6 @@ export interface UseGym {
   ) => void
   deleteSessionById: (id: string) => void
   updateSettings: (settings: GymSettings) => void
-  /** Bulk upsert file-imported sessions (idempotent — keyed by id). */
-  importSessions: (sessions: GymSession[]) => void
   /** Full idempotent pull from the Hevy API via the dev proxy. */
   runHevySync: (
     onProgress: (done: number, total: number) => void,
@@ -117,14 +115,6 @@ export function useGym(): UseGym {
     setSettingsState(next)
   }, [])
 
-  const importSessions = useCallback(
-    (incoming: GymSession[]) => {
-      gymRepo.bulkUpsertSessions(incoming)
-      refresh()
-    },
-    [refresh],
-  )
-
   const runHevySync = useCallback(
     async (
       onProgress: (done: number, total: number) => void,
@@ -159,7 +149,6 @@ export function useGym(): UseGym {
     updateSession,
     deleteSessionById,
     updateSettings,
-    importSessions,
     runHevySync,
   }
 }

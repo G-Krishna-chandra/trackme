@@ -39,11 +39,13 @@ function App() {
 
         {tab === 'reading' ? <ReadingView /> : <GymView />}
 
-        <footer className="mt-8 text-center text-[12px] text-[#8c959f]">
-          Local-first · your data lives only in this browser.
-          <br />
-          Book data from Open Library and Google Books.
-        </footer>
+        {tab === 'reading' ? (
+          <footer className="mt-8 text-center text-[12px] text-[#8c959f]">
+            Local-first · your data lives only in this browser.
+            <br />
+            Book data from Open Library and Google Books.
+          </footer>
+        ) : null}
       </div>
     </div>
   )
