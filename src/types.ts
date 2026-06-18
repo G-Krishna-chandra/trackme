@@ -71,6 +71,37 @@ export interface GymSettings {
   lastSyncedAt?: string
 }
 
+// ---- Chess (Chess.com sync) ------------------------------------------------
+// Grid is colored by GAMES PLAYED per day (activity); the Elo "climb" is a
+// separate rating-over-time line (an outcome, not an activity).
+
+export type ChessTimeClass = 'rapid' | 'blitz' | 'bullet' | 'daily'
+
+/** Per-day chess activity, derived/cached from the Chess.com archives. */
+export interface ChessDay {
+  /** ISO yyyy-mm-dd, local. */
+  date: string
+  /** Rated standard games played that day (drives the grid color). */
+  gamesPlayed: number
+  wins: number
+  losses: number
+  draws: number
+  /** Last rating that day per time class (rating after that class's last game). */
+  ratingByClass: Partial<Record<ChessTimeClass, number>>
+  /** Rating after the day's final game (any class) — for the grid tooltip. */
+  lastRating?: number
+}
+
+export interface ChessSettings {
+  /** Chess.com username (public, not a secret). */
+  username?: string
+  lastSyncedAt?: string
+  /** Most-played class over the synced window — the rating line's default. */
+  primaryClass?: ChessTimeClass
+  /** Current rating per class from /pub/player/{u}/stats. */
+  currentRatings?: Partial<Record<ChessTimeClass, number>>
+}
+
 /**
  * A denormalized snapshot of a book, captured at selection time so it renders
  * offline forever without re-fetching. Merged from Open Library (identity,

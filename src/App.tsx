@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { ReadingView } from './components/ReadingView'
 import { GymView } from './components/GymView'
 import { MinutesHabitView } from './components/MinutesHabitView'
+import { ChessView } from './components/ChessView'
 
-type Tab = 'reading' | 'gym' | 'guitar'
+type Tab = 'reading' | 'gym' | 'guitar' | 'chess'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'reading', label: 'Reading' },
   { id: 'gym', label: 'Gym' },
   { id: 'guitar', label: 'Guitar' },
+  { id: 'chess', label: 'Chess' },
 ]
 
 function renderView(tab: Tab) {
@@ -19,6 +21,8 @@ function renderView(tab: Tab) {
       return <GymView />
     case 'guitar':
       return <MinutesHabitView habitId="guitar" />
+    case 'chess':
+      return <ChessView />
   }
 }
 
