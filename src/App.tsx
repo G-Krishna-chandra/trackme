@@ -4,13 +4,14 @@ import { GymView } from './components/GymView'
 import { MinutesHabitView } from './components/MinutesHabitView'
 import { ChessView } from './components/ChessView'
 
-type Tab = 'reading' | 'gym' | 'guitar' | 'chess'
+type Tab = 'reading' | 'gym' | 'guitar' | 'chess' | 'cardistry'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'reading', label: 'Reading' },
   { id: 'gym', label: 'Gym' },
   { id: 'guitar', label: 'Guitar' },
   { id: 'chess', label: 'Chess' },
+  { id: 'cardistry', label: 'Cardistry' },
 ]
 
 function renderView(tab: Tab) {
@@ -23,6 +24,8 @@ function renderView(tab: Tab) {
       return <MinutesHabitView habitId="guitar" />
     case 'chess':
       return <ChessView />
+    case 'cardistry':
+      return <MinutesHabitView habitId="cardistry" />
   }
 }
 

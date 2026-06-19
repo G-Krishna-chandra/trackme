@@ -14,6 +14,7 @@ const RAMPS: Record<string, Ramp> = {
   blue: ['#ebedf0', '#9ecbff', '#54aeff', '#218bff', '#0a3069'],
   orange: ['#ebedf0', '#ffd8a8', '#ffa657', '#ec7813', '#a04100'],
   purple: ['#ebedf0', '#d8b9ff', '#b07cf2', '#8250df', '#5a2da0'],
+  teal: ['#ebedf0', '#9fe0d8', '#56c4b5', '#2aa392', '#0f766e'],
 }
 
 const FALLBACK = RAMPS.green

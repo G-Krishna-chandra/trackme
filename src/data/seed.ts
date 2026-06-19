@@ -9,6 +9,7 @@ export const SEED_HABITS: Habit[] = [
   { id: 'gym', name: 'Gym', unit: 'volume', color: 'purple' },
   { id: 'guitar', name: 'Guitar', unit: 'minutes', color: 'orange' },
   { id: 'chess', name: 'Chess', unit: 'games', color: 'blue' },
+  { id: 'cardistry', name: 'Cardistry', unit: 'minutes', color: 'teal' },
 ]
 
 export const PRIMARY_HABIT_ID = 'reading'
