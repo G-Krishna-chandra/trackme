@@ -80,6 +80,40 @@ async function fetchWorkoutsPage(
   return { workouts: data.workouts ?? [], pageCount: data.page_count ?? 1 }
 }
 
+export interface HevyTemplate {
+  id?: string
+  title?: string
+  primary_muscle_group?: string
+  secondary_muscle_groups?: string[]
+}
+
+const TEMPLATE_PAGE_SIZE = 100 // exercise_templates accepts up to 100/page
+
+/**
+ * Fetch ALL exercise templates (built-in + the user's custom ones) through the
+ * proxy, paginating via page_count. Reuses the same auth handling, so a missing
+ * key surfaces as HevyAuthError. Returns the raw templates.
+ */
+export async function fetchExerciseTemplates(
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<HevyTemplate[]> {
+  const out: HevyTemplate[] = []
+  let page = 1
+  let pageCount = 1
+  do {
+    const data = (await getJson(
+      `/exercise_templates?page=${page}&pageSize=${TEMPLATE_PAGE_SIZE}`,
+      signal,
+    )) as { exercise_templates?: HevyTemplate[]; page_count?: number }
+    pageCount = data.page_count ?? 1
+    for (const t of data.exercise_templates ?? []) out.push(t)
+    onProgress?.(page, pageCount)
+    page++
+  } while (page <= pageCount)
+  return out
+}
+
 /** Parse Hevy start_time (ISO 8601 string, or a unix number) to a LOCAL date. */
 function toLocalDate(start: string | number | undefined): string | null {
   if (start === undefined || start === null || start === '') return null

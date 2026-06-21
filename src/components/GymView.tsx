@@ -13,6 +13,7 @@ import { GymStats } from './GymStats'
 import { GymGrid } from './GymGrid'
 import { GymSync } from './GymSync'
 import { Sparkline } from './Sparkline'
+import { MuscleHeatMap } from './MuscleHeatMap'
 
 export function GymView() {
   const today = todayISO()
@@ -199,6 +200,13 @@ export function GymView() {
           color={habit.color}
         />
       </section>
+
+      <MuscleHeatMap
+        sessions={sessions}
+        bodyweight={settings.bodyweight}
+        weightUnit={settings.weightUnit}
+        color={habit.color}
+      />
     </>
   )
 }
