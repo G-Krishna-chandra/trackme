@@ -2,47 +2,50 @@ import type { Level } from '../types'
 import { cellColor } from '../lib/colors'
 import { MUSCLE_SVG } from './bodyMuscleData'
 
-// Anatomical muscle map. The contoured per-muscle polygons are vendored from
-// react-body-highlighter (MIT, © GV79) in ./bodyMuscleData; here we map the
-// asset's muscle slugs onto our Hevy muscle keys and drive fill + hover
-// ourselves (the data layer is unchanged — levelOf/onEnter still speak Hevy
-// keys). Where the asset splits a group finer (deltoids front/back, abs +
-// obliques, calves + soleus) every sub-region takes the group's single
-// intensity. Where it's coarser than our data (lats + upper_back share one
-// "upper-back" region) we color by — and hover reports — the harder-trained of
-// the two.
+// Anatomical muscle map. Contoured per-muscle paths are vendored from
+// react-native-body-highlighter (MIT, © 2022 ELABBASSI Hicham) in
+// ./bodyMuscleData; here we map the asset's slugs onto our Hevy muscle keys and
+// drive fill + hover ourselves (the data layer is unchanged — levelOf/onEnter
+// still speak Hevy keys).
+//
+// Correctness rule: a region only shows its own label/intensity when Hevy
+// distinguishes that group. Asset regions FINER than Hevy fold into the Hevy
+// group (obliques→abdominals "Abs", tibialis→calves "Calves"; quad/delt shapes
+// already share one slug). Where the asset is COARSER than Hevy (no separate
+// lats; no abductor shape) two Hevy groups share one region, colored/labeled by
+// the harder-trained of the two — never inventing a finer label.
 
-// asset slug → our Hevy muscle key(s). An array means "pick the dominant".
-const ANTERIOR_MAP: Record<string, string | string[]> = {
+// asset slug → Hevy key, or [keys] meaning "pick the dominant".
+const FRONT_MAP: Record<string, string | string[]> = {
   chest: 'chest',
-  'front-deltoids': 'shoulders',
+  deltoids: 'shoulders',
   biceps: 'biceps',
   triceps: 'triceps',
   forearm: 'forearms',
   abs: 'abdominals',
-  obliques: 'abdominals',
+  obliques: 'abdominals', // Hevy has no obliques → folded into Abs
   quadriceps: 'quadriceps',
-  abductors: 'abductors',
+  adductors: 'adductors', // distinct inner-thigh group (the fix)
   calves: 'calves',
+  tibialis: 'calves', // Hevy has no tibialis → folded into Calves
+  trapezius: 'traps',
 }
 
-const POSTERIOR_MAP: Record<string, string | string[]> = {
+const BACK_MAP: Record<string, string | string[]> = {
   trapezius: 'traps',
-  'upper-back': ['lats', 'upper_back'],
+  'upper-back': ['lats', 'upper_back'], // asset has no separate lats → dominant
   'lower-back': 'lower_back',
-  'back-deltoids': 'shoulders',
+  deltoids: 'shoulders',
   triceps: 'triceps',
   forearm: 'forearms',
-  gluteal: 'glutes',
+  gluteal: ['glutes', 'abductors'], // asset has no hip-abductor shape → dominant
   hamstring: 'hamstrings',
-  adductor: 'adductors',
+  adductors: 'adductors',
   calves: 'calves',
-  'left-soleus': 'calves',
-  'right-soleus': 'calves',
 }
 
-// Non-muscle slugs from the asset — drawn faint to complete the figure.
-const SILHOUETTE_SLUGS = new Set(['head', 'neck', 'knees'])
+// Non-muscle slugs — drawn faint to complete the figure, not interactive.
+const SILHOUETTE_SLUGS = new Set(['head', 'hair', 'neck', 'knees', 'ankles', 'feet', 'hands'])
 
 interface BodyMapProps {
   view: 'front' | 'back'
@@ -53,34 +56,33 @@ interface BodyMapProps {
 }
 
 export function BodyMap({ view, color, levelOf, onEnter, onLeave }: BodyMapProps) {
-  const regions = view === 'front' ? MUSCLE_SVG.anterior : MUSCLE_SVG.posterior
-  const map = view === 'front' ? ANTERIOR_MAP : POSTERIOR_MAP
-
+  const regions = view === 'front' ? MUSCLE_SVG.front : MUSCLE_SVG.back
+  const map = view === 'front' ? FRONT_MAP : BACK_MAP
+  const viewBox = view === 'front' ? MUSCLE_SVG.viewBoxFront : MUSCLE_SVG.viewBoxBack
   const faint = cellColor(color, 0)
 
   return (
     <div className="flex flex-col items-center">
       <svg
-        viewBox={MUSCLE_SVG.viewBox}
+        viewBox={viewBox}
         className="w-full max-w-[150px]"
         role="img"
         aria-label={`${view} muscle map`}
       >
-        {Object.entries(regions).map(([slug, polys]) => {
+        {Object.entries(regions).map(([slug, paths]) => {
           const target = map[slug]
 
-          // Non-muscle / unmapped → faint silhouette, not interactive.
           if (!target || SILHOUETTE_SLUGS.has(slug)) {
             return (
               <g key={slug} aria-hidden>
-                {polys.map((points, i) => (
-                  <polygon key={i} points={points} fill={faint} />
+                {paths.map((d, i) => (
+                  <path key={i} d={d} fill={faint} />
                 ))}
               </g>
             )
           }
 
-          // Resolve the Hevy key driving this region (dominant one if several).
+          // Hevy key driving this region (the dominant one if several share it).
           const candidates = Array.isArray(target) ? target : [target]
           let pick = candidates[0]
           for (const c of candidates) if (levelOf(c) > levelOf(pick)) pick = c
@@ -93,14 +95,8 @@ export function BodyMap({ view, color, levelOf, onEnter, onLeave }: BodyMapProps
               onMouseEnter={(e) => onEnter(pick, e.currentTarget.getBoundingClientRect())}
               onMouseLeave={onLeave}
             >
-              {polys.map((points, i) => (
-                <polygon
-                  key={i}
-                  points={points}
-                  fill={fill}
-                  stroke="#ffffff"
-                  strokeWidth={0.3}
-                />
+              {paths.map((d, i) => (
+                <path key={i} d={d} fill={fill} stroke="#ffffff" strokeWidth={2} />
               ))}
             </g>
           )
