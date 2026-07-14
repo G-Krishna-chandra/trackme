@@ -3,8 +3,9 @@ import { ReadingView } from './components/ReadingView'
 import { GymView } from './components/GymView'
 import { MinutesHabitView } from './components/MinutesHabitView'
 import { ChessView } from './components/ChessView'
+import { DataView } from './components/DataView'
 
-type Tab = 'reading' | 'gym' | 'guitar' | 'chess' | 'cardistry'
+type Tab = 'reading' | 'gym' | 'guitar' | 'chess' | 'cardistry' | 'data'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'reading', label: 'Reading' },
@@ -12,6 +13,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'guitar', label: 'Guitar' },
   { id: 'chess', label: 'Chess' },
   { id: 'cardistry', label: 'Cardistry' },
+  { id: 'data', label: 'Data' },
 ]
 
 function renderView(tab: Tab) {
@@ -26,6 +28,8 @@ function renderView(tab: Tab) {
       return <ChessView />
     case 'cardistry':
       return <MinutesHabitView habitId="cardistry" />
+    case 'data':
+      return <DataView />
   }
 }
 
@@ -39,6 +43,11 @@ function App() {
           <h1 className="text-2xl font-bold tracking-tight text-[#1f2328]">
             TrackMe
           </h1>
+          <p className="mt-1 text-[13px] text-[#656d76]">
+            A local-first habit tracker. Every day is shaded against your own
+            recent baseline — you're only ever competing with recent&#8209;you,
+            never a fixed goal.
+          </p>
           <nav className="mt-3 flex flex-wrap gap-1 border-b border-[#d0d7de]">
             {TABS.map((t) => (
               <button
@@ -59,13 +68,11 @@ function App() {
 
         {renderView(tab)}
 
-        {tab === 'reading' ? (
-          <footer className="mt-8 text-center text-[12px] text-[#8c959f]">
-            Local-first · your data lives only in this browser.
-            <br />
-            Book data from Open Library and Google Books.
-          </footer>
-        ) : null}
+        <footer className="mt-8 text-center text-[12px] text-[#8c959f]">
+          Local-first · your data lives only in this browser — no account, no
+          server, no tracking. See the <strong>Data</strong> tab to back up or
+          restore.
+        </footer>
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchExerciseTemplates } from '../lib/hevySync'
 import { buildTemplateMap, type TemplateMap } from '../lib/muscles'
+import { capabilities } from '../lib/capabilities'
 
 // Cached Hevy exercise_template → muscle map. Templates rarely change, so it's
 // stored in localStorage and only re-fetched when missing, stale, or on manual
@@ -65,8 +66,11 @@ export function useMuscleMap(): UseMuscleMap {
     }
   }, [])
 
-  // Auto-fetch once on mount if the cache is empty or stale.
+  // Auto-fetch once on mount if the cache is empty or stale. The template fetch
+  // needs the Hevy dev proxy, so hosted builds skip it and use whatever map is
+  // cached (e.g. from an imported backup) — no network error, no auth hint.
   useEffect(() => {
+    if (!capabilities.hevyApiSync) return
     const empty = Object.keys(readMap()).length === 0
     const at = readAt()
     const stale = !at || Date.now() - Date.parse(at) > STALE_MS

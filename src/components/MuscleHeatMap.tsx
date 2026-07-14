@@ -9,6 +9,7 @@ import {
   muscleLevel,
 } from '../lib/muscles'
 import { BodyMap } from './BodyMap'
+import { capabilities } from '../lib/capabilities'
 
 interface MuscleHeatMapProps {
   sessions: GymSession[]
@@ -117,19 +118,23 @@ export function MuscleHeatMap({
                 ? 'Could not load exercise data.'
                 : fetchedAt
                   ? `Exercise data from ${formatLong(fetchedAt.slice(0, 10))}`
-                  : 'No exercise data yet — Sync from Hevy first.'}
+                  : capabilities.hevyApiSync
+                    ? 'No exercise data yet — Sync from Hevy first.'
+                    : 'Muscle attribution needs Hevy exercise data — import a backup that includes it.'}
           {attribution.unattributedVolume > 0
             ? ` · ${Math.round(attribution.unattributedVolume).toLocaleString()} ${weightUnit} (${attribution.unattributedSets} sets) couldn't be mapped to a muscle`
             : ''}
         </span>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={status === 'loading'}
-          className="rounded-md border border-[#d0d7de] px-2 py-0.5 text-[12px] font-medium text-[#1f2328] hover:bg-[#f3f4f6] disabled:opacity-60"
-        >
-          Refresh exercise data
-        </button>
+        {capabilities.hevyApiSync ? (
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={status === 'loading'}
+            className="rounded-md border border-[#d0d7de] px-2 py-0.5 text-[12px] font-medium text-[#1f2328] hover:bg-[#f3f4f6] disabled:opacity-60"
+          >
+            Refresh exercise data
+          </button>
+        ) : null}
       </div>
 
       {hover ? (

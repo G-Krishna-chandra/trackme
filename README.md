@@ -181,6 +181,13 @@ to the weaker Open Library fallback. A free API key removes that limit:
 `.env.local` is git-ignored, so your key never lands in the repo. The app runs
 fine without a key — just rate-limited.
 
+> **Hosted build note.** `VITE_GOOGLE_BOOKS_KEY` is baked into the client bundle
+> at build time (it's a `VITE_`-prefixed var). That is acceptable **only** with an
+> HTTP-referrer-restricted key: in the Google Cloud Console, restrict the key to
+> the **Books API** *and* to your deployed domain's HTTP referrer, then set it as a
+> build-time env var in the Cloudflare Pages dashboard (never commit it). A
+> referrer-locked key is useless from any other origin.
+
 ### Sync from Hevy (optional, requires Hevy Pro)
 
 The Gym habit can pull your workouts straight from the [Hevy](https://hevy.com)
@@ -202,6 +209,33 @@ that to `api.hevyapp.com` and injects the `api-key` header server-side. Sync is 
 full, idempotent pull (re-syncing never duplicates and picks up new/edited
 workouts); it only works under `npm run dev`. There's also a **file import**
 (Hevy → Export Workouts) on the Gym view if you don't have Pro.
+
+## Deploy (Cloudflare Pages)
+
+One codebase, two build targets, selected by `VITE_DEPLOY_TARGET` (defaults to
+`local`, so dev is unchanged when the var is absent). The **hosted** target is
+the same app as a secretless static site — no server, no proxy, no account.
+
+A [capability layer](src/lib/capabilities.ts) gates the few things that need a
+server: live **Hevy API sync** and the **longitood** cover proxy are local-only;
+the **Hevy CSV/TSV import**, book search, cover resolution (Open Library
+canonical), and chess sync all work statically. In the hosted build the "Sync
+from Hevy" button is simply absent — the CSV import is the Hevy affordance.
+
+Cloudflare Pages settings:
+
+| Setting | Value |
+| --- | --- |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Env var | `VITE_DEPLOY_TARGET=hosted` |
+| Env var | `VITE_GOOGLE_BOOKS_KEY=<referrer-restricted key>` (see above) |
+
+No Worker, backend, or database — `dist/` is fully static. The **Hevy API key is
+never in the bundle** (it has no `VITE_` prefix and is used only by the dev-server
+proxy, which doesn't run in a production build). Because there's no account, the
+**Data** tab's export/import is the user's only backup — clearing site data
+erases everything.
 
 ### Using it
 

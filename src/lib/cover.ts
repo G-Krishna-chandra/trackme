@@ -1,5 +1,6 @@
 import type { Book } from '../types'
 import { LocalStorageBookRepository } from '../data/LocalStorageBookRepository'
+import { capabilities } from './capabilities'
 
 // Cover resolution. A book's stored coverUrl comes from whatever edition Google
 // ranked first — often a no-name reprint, not the WORK's recognizable cover. So
@@ -287,10 +288,15 @@ async function doResolve(
 
   // Top tier: longitood (preferred) and the OL WORK canonical cover, raced
   // concurrently. First verified-loadable wins; preference only breaks ties.
-  const top = await firstNonNull([
-    longitoodLoadable(isbn13, input.title, firstAuthor, signal),
-    olWorkLoadable(input.title, firstAuthor, signal),
-  ])
+  // longitood is a third-party hobby service, so hosted builds skip it entirely
+  // and start at the OL canonical step (phase 2's shared server-side cover cache
+  // is the real fix for public traffic).
+  const topTasks: Array<Promise<string | null>> = []
+  if (capabilities.longitoodCovers) {
+    topTasks.push(longitoodLoadable(isbn13, input.title, firstAuthor, signal))
+  }
+  topTasks.push(olWorkLoadable(input.title, firstAuthor, signal))
+  const top = await firstNonNull(topTasks)
   if (top) return top
   if (signal?.aborted) throw abortError()
 
