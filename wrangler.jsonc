@@ -1,0 +1,12 @@
+{
+  // Assets-only static SPA deploy for Cloudflare Workers. There is intentionally
+  // no "main" entry point — this ships the built dist/ as static assets, with no
+  // Worker script, no backend, no server. The name must match the Cloudflare
+  // project exactly ("trackme") so `npx wrangler deploy` updates it in place.
+  "name": "trackme",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
